@@ -16,6 +16,7 @@ the only LLM provider (for now).
 ```bash
 npm run dev            # dev server (http://localhost:3000)
 npm test               # Vitest, offline (LLM_MODE=fake)
+npm run test:e2e       # Playwright (mobile + desktop) against the production build; run `npm run build` first
 npm run lint           # ESLint
 npm run typecheck      # next typegen + tsc
 npm run format         # Prettier
@@ -76,6 +77,8 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
 ## Testing
 
 - Unit tests: `tests/unit`. Integration tests (real SQLite in a temp dir): `tests/integration`.
+  E2E tests: `tests/e2e` (Playwright, fake LLM, throwaway `data/e2e.db`).
+- UI components come from shadcn/ui (`npx shadcn@latest add <component>` → `src/components/ui`).
 - New logic in `src/server` or `src/lib` comes with tests; bug fixes come with a regression test.
 
 ## Git

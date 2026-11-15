@@ -49,3 +49,9 @@ next-env.d.ts
 # local planning document (not published)
 /docs/PLAN.md
 
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+

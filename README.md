@@ -24,10 +24,11 @@ npm run dev                  # http://localhost:3000  (health check: /api/health
 
 ## Scripts
 
-| Command                                            | Purpose                                                                                            |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                            |
-| `npm test`                                         | Vitest unit + integration tests (offline, `LLM_MODE=fake`)                                         |
-| `npm run lint` / `typecheck` / `format`            | Code quality                                                                                       |
-| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                  |
-| `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key) |
+| Command                                            | Purpose                                                                                                         |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                                         |
+| `npm test`                                         | Vitest unit + integration tests (offline, `LLM_MODE=fake`)                                                      |
+| `npm run test:e2e`                                 | Playwright smoke tests on mobile + desktop (after `npm run build`; first run `npx playwright install chromium`) |
+| `npm run lint` / `typecheck` / `format`            | Code quality                                                                                                    |
+| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                               |
+| `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)              |
