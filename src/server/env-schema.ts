@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 /**
  * Server-side environment, validated once at startup.
@@ -11,7 +11,7 @@ const EnvSchema = z
 
     LLM_MODE: z.enum(["fake", "live"]).default("fake"),
     OPENROUTER_API_KEY: z.string().optional(),
-    OPENROUTER_MODEL: z.string().default("openai/gpt-oss-20b:free"),
+    OPENROUTER_MODEL: z.string().default("openrouter/free"),
 
     LANGSMITH_TRACING: z.enum(["true", "false"]).default("false"),
     LANGSMITH_API_KEY: z.string().optional(),
