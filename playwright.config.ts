@@ -13,6 +13,19 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
+  // Screenshot tests (tests/e2e/visual.spec.ts): reference images exist for Windows only for
+  // now, so the comparisons are skipped elsewhere (including Linux CI).
+  ignoreSnapshots: process.platform !== "win32",
+  snapshotPathTemplate:
+    "{testDir}/__screenshots__/{testFileName}/{arg}-{projectName}-{platform}{ext}",
+  expect: {
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+      // Absorbs anti-aliasing noise only; any visible change fails.
+      maxDiffPixelRatio: 0.001,
+    },
+  },
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",

@@ -38,16 +38,19 @@ export const PHOTON_ROME = {
   ],
 };
 
-/** [name, category, tags, visit minutes, popularity]; no photos (the browser stays offline too). */
-const ROME_PLACES: [string, string, string[], number, number][] = [
-  ["Colosseum", "historic-site", ["history", "iconic"], 120, 9000],
-  ["Pantheon", "landmark", ["history", "architecture", "iconic"], 30, 7000],
-  ["Trevi Fountain", "landmark", ["art", "iconic"], 20, 6000],
-  ["Vatican Museums", "museum", ["art", "history"], 180, 5000],
-  ["Galleria Borghese", "museum", ["art"], 120, 2000],
-  ["Villa Borghese", "park", ["nature", "family"], 90, 1500],
-  ["Campo de' Fiori", "market", ["food", "local-life"], 45, 1200],
-  ["Aventine Keyhole", "viewpoint", ["views", "hidden-gem"], 20, 800],
+/**
+ * [name, category, tags, visit minutes, popularity, lat, lon]; real coordinates so that the
+ * itinerary clusters, legs and map are realistic. No photos (the browser stays offline too).
+ */
+const ROME_PLACES: [string, string, string[], number, number, number, number][] = [
+  ["Colosseum", "historic-site", ["history", "iconic"], 120, 9000, 41.8902, 12.4922],
+  ["Pantheon", "landmark", ["history", "architecture", "iconic"], 30, 7000, 41.8986, 12.4769],
+  ["Trevi Fountain", "landmark", ["art", "iconic"], 20, 6000, 41.9009, 12.4833],
+  ["Vatican Museums", "museum", ["art", "history"], 180, 5000, 41.9065, 12.4536],
+  ["Galleria Borghese", "museum", ["art"], 120, 2000, 41.9142, 12.4921],
+  ["Villa Borghese", "park", ["nature", "family"], 90, 1500, 41.9128, 12.4852],
+  ["Campo de' Fiori", "market", ["food", "local-life"], 45, 1200, 41.8956, 12.4722],
+  ["Aventine Keyhole", "viewpoint", ["views", "hidden-gem"], 20, 800, 41.8829, 12.4787],
 ];
 
 function main() {
@@ -62,7 +65,7 @@ function main() {
   writeHttpCache(db, "photon:rome", PHOTON_ROME, 365 * DAY_MS, now);
   const rome = upsertCity(db, parsePhotonResponse(PHOTON_ROME)[0]);
 
-  for (const [name, category, tags, visitMinutes, popularity] of ROME_PLACES) {
+  for (const [name, category, tags, visitMinutes, popularity, lat, lon] of ROME_PLACES) {
     const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(name.replace(/ /g, "_"))}`;
     db.insert(places)
       .values({
@@ -74,13 +77,16 @@ function main() {
         category,
         tags,
         pitch: `${name} is a must for any first visit to Rome.`,
-        lat: 41.9,
-        lon: 12.48,
+        lat,
+        lon,
         visitMinutes,
         popularity,
         fetchedAt: now,
       })
-      .onConflictDoUpdate({ target: [places.cityId, places.wikiTitle], set: { fetchedAt: now } })
+      .onConflictDoUpdate({
+        target: [places.cityId, places.wikiTitle],
+        set: { fetchedAt: now, lat, lon },
+      })
       .run();
   }
   console.log(`Seeded E2E fixtures into ${env.DATABASE_PATH} (${ROME_PLACES.length} places).`);

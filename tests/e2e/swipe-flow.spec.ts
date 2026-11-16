@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { collectErrors, hydrated } from "./helpers";
 
 /** Setup → Swipe → Review on the seeded Rome pool (tests/e2e/seed.ts), fully offline. */
 
 async function createRomeTrip(page: Page) {
   await page.goto("/");
+  await hydrated(page.getByRole("combobox", { name: "City" }));
   await page.getByRole("combobox", { name: "City" }).fill("Rome");
   await page.getByRole("option", { name: /Rome, Lazio, Italy/ }).click();
   await page.getByText("2", { exact: true }).click();
@@ -12,20 +14,15 @@ async function createRomeTrip(page: Page) {
   await page.getByRole("button", { name: "Start swiping" }).click();
   await expect(page).toHaveURL(/\/trip\/[0-9a-f-]{36}\/swipe$/);
   await expect(page.getByRole("heading", { level: 1, name: "Rome" })).toBeVisible();
+  await hydrated(page.getByRole("button", { name: "Like", exact: true }));
 }
 
 const topCardTitle = (page: Page) =>
   page.locator('[aria-roledescription="card stack"] > div:not([aria-hidden]) h2');
 
-function collectErrors(page: Page) {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
-  page.on("console", (msg) => msg.type() === "error" && errors.push(msg.text()));
-  return errors;
-}
-
 test("setup requires a city from the suggestions", async ({ page }) => {
   await page.goto("/");
+  await hydrated(page.getByRole("button", { name: "Start swiping" }));
   await page.getByRole("button", { name: "Start swiping" }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "Pick a city from the suggestions." }),
@@ -71,6 +68,7 @@ test("swipe with buttons, keyboard and drag, undo, then review the shortlist", a
   // Decisions survive a reload (persisted by the Server Actions).
   await page.reload();
   await expect(page.getByText("Place 3 of 8")).toBeVisible();
+  await hydrated(reviewButton);
 
   await reviewButton.click();
   await expect(page).toHaveURL(/\/review$/);
@@ -81,16 +79,22 @@ test("swipe with buttons, keyboard and drag, undo, then review the shortlist", a
   await expect(items.first()).toContainText("Must-see");
   await expect(items.nth(1)).toContainText(first!);
 
-  // Promote the liked place, then remove the other one.
+  // Promote the liked place, then remove the other one. The list updates optimistically:
+  // wait for each Server Action before going on, so the reload sees both changes.
+  const saved = () => page.waitForResponse((r) => r.request().method() === "POST");
+  let done = saved();
   await page.getByRole("button", { name: `Mark ${first} as must-see` }).click();
   await expect(page.getByText("2 places · 2 must-see")).toBeVisible();
+  await done;
+  done = saved();
   await page.getByRole("button", { name: `Remove ${second}` }).click();
   await expect(items).toHaveCount(1);
+  await done;
 
   await page.reload();
   await expect(items).toHaveCount(1);
   await expect(items.first()).toContainText(first!);
-  await expect(page.getByRole("button", { name: "Generate itinerary" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Generate itinerary" })).toBeEnabled();
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
