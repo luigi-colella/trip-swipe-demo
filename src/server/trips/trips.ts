@@ -57,6 +57,17 @@ export function getTrip(db: AppDatabase, tripId: string): TripWithCity | undefin
   return row ?? undefined;
 }
 
+export type TripSettings = { days?: number; pace?: Pace; interests?: readonly string[] };
+
+/** Changes days, pace or interests (agent `set_trip`); the caller re-plans if needed. */
+export function updateTripSettings(db: AppDatabase, tripId: string, settings: TripSettings): void {
+  const { interests, ...rest } = settings;
+  db.update(trips)
+    .set({ ...rest, ...(interests && { interests: [...interests] }), updatedAt: new Date() })
+    .where(eq(trips.id, tripId))
+    .run();
+}
+
 export function setTripStatus(db: AppDatabase, tripId: string, status: TripStatus): void {
   db.update(trips).set({ status, updatedAt: new Date() }).where(eq(trips.id, tripId)).run();
 }

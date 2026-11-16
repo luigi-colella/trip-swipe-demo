@@ -41,6 +41,8 @@ export type PlannerInput = {
   places: readonly PlannerPlace[];
   /** Current itinerary, when the traveller asks for a different one (bypasses the cache). */
   previous?: ItineraryData;
+  /** The traveller's wishes for a new plan (from the chat agent). */
+  instructions?: string;
 };
 
 export type PlannerResult = {
@@ -122,6 +124,7 @@ export function buildPlannerGraph(deps: PlannerDeps) {
       places,
       draft: toAliases(s, draft),
       previous: s.input.previous ? toAliases(s, s.input.previous) : undefined,
+      instructions: s.input.instructions,
     });
     return { draft, conversation };
   };

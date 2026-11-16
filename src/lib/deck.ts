@@ -88,3 +88,15 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
 export function shortlistCount(history: readonly DeckEntry[]): number {
   return history.filter((e) => e.decision !== "skip").length;
 }
+
+/**
+ * Identifies the server's view of a deck. The deck keeps its own state after the first render,
+ * so a change made elsewhere (the chat agent) must remount it: its `key` changes whenever the
+ * swipes or the size of the pool change. djb2 hash, short and stable.
+ */
+export function deckVersion(deck: readonly PlaceCard[], history: readonly DeckEntry[]): string {
+  const source = `${deck.length}|${history.map((e) => `${e.place.id}:${e.decision}`).join(",")}`;
+  let hash = 5381;
+  for (let i = 0; i < source.length; i++) hash = ((hash << 5) + hash + source.charCodeAt(i)) | 0;
+  return (hash >>> 0).toString(36);
+}

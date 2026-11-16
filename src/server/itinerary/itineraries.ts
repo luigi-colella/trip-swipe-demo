@@ -118,13 +118,14 @@ const inFlight = new Map<string, Promise<PlannerResult & { version: number }>>()
 
 /**
  * Plans the trip's shortlist (workflow B), saves it as a new version and moves the trip to
- * the itinerary step. `regenerate` asks for an alternative to the current plan.
+ * the itinerary step. `regenerate` asks for an alternative to the current plan;
+ * `instructions` are the traveller's wishes relayed by the chat agent.
  */
 export function generateItinerary(
   db: AppDatabase,
   found: TripWithCity,
   deps: PlannerDeps,
-  { regenerate = false }: { regenerate?: boolean } = {},
+  { regenerate = false, instructions }: { regenerate?: boolean; instructions?: string } = {},
 ): Promise<PlannerResult & { version: number }> {
   const { trip, city } = found;
   const pending = inFlight.get(trip.id);
@@ -134,7 +135,7 @@ export function generateItinerary(
     if (shortlist.length === 0) throw new EmptyShortlistError();
     const previous = regenerate ? getLatestItinerary(db, trip.id)?.data : undefined;
     const result = await planItinerary(
-      { city, days: trip.days, pace: trip.pace, places: shortlist, previous },
+      { city, days: trip.days, pace: trip.pace, places: shortlist, previous, instructions },
       deps,
     );
     const version = saveItinerary(db, trip.id, result.data);
