@@ -27,6 +27,7 @@ npm run db:migrate     # apply migrations + checkpointer tables
 npm run db:seed        # pre-compute demo city place pools (LLM_MODE=live, 1 LLM call per new city; see README)
 npm run spike:llm      # live model checks (needs OPENROUTER_API_KEY in .env.local)
 npm run evals          # LangSmith evals (live: spends daily LLM budget; --dry-run, --suite)
+npm run demo:record    # record the README demo video (fake LLM, copy of data/app.db; after build)
 ```
 
 Before declaring work done: `npm run lint && npm run typecheck && npm test` must pass.

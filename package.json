@@ -20,7 +20,8 @@
     "spike:llm": "node --env-file-if-exists=.env.local --import tsx scripts/spike-llm.ts",
     "evals": "node --env-file-if-exists=.env.local --import tsx scripts/evals.ts",
     "test:e2e": "playwright test",
-    "test:e2e:update-screenshots": "playwright test --update-snapshots"
+    "test:e2e:update-screenshots": "playwright test --update-snapshots",
+    "demo:record": "playwright test -c scripts/demo/playwright.config.ts"
   },
   "dependencies": {
     "@ai-sdk/langchain": "^3.0.173",
