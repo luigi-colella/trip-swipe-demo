@@ -52,6 +52,11 @@ describe("http_cache", () => {
     expect(t.sqlite.prepare("SELECT key FROM http_cache").pluck().all()).toEqual([
       "photon:rome caches test",
     ]);
+
+    // Repeated keystrokes are answered from memory: no SQLite read, no request.
+    t.sqlite.prepare("DELETE FROM http_cache").run();
+    expect(await searchCities("  ROME   caches test ", { db: t.db })).toBe(result);
+    expect(calls).toHaveLength(1);
   });
 });
 

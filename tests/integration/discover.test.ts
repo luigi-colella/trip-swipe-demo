@@ -13,7 +13,7 @@ import {
   type DiscoveryDeps,
 } from "@/server/places/discover";
 import { DAY_MS, HttpError } from "@/server/places/http-cache";
-import { fetchWikiPages } from "@/server/places/wikipedia";
+import { fetchImageCredits, fetchWikiPages } from "@/server/places/wikipedia";
 import { createTestDatabase } from "../helpers/db";
 import { mockWikimedia, server, type StubArticle } from "../helpers/msw";
 
@@ -179,5 +179,31 @@ describe("workflow A: place discovery", () => {
 
     const art = await findPlacesForTrip(rome, ["art"], deps());
     expect(art[0].tags).toContain("art");
+  });
+});
+
+describe("workflow A edge cases", () => {
+  it("keeps the data of articles that disappeared and refreshes the others", async () => {
+    await ensureCityPool(rome, deps());
+    const later = new Date(Date.now() + 91 * DAY_MS);
+    // Only the Colosseum is still on Wikipedia, now with a licensed photo.
+    mockWikimedia({ Colosseum: near(7000, { image: "New.jpg" }) });
+    const pool = await ensureCityPool(rome, deps({ now: () => later }));
+    expect(pool.find((p) => p.wikiTitle === "Colosseum")).toMatchObject({
+      popularity: 7000,
+      imageLicense: "CC BY-SA 4.0",
+    });
+    const forum = pool.find((p) => p.wikiTitle === "Roman Forum")!;
+    expect(forum.popularity).toBe(100);
+    expect(forum.fetchedAt.getTime()).toBe(later.getTime() - (later.getTime() % 1000));
+  });
+
+  it("serves photo credits from the cache, including files without a license", async () => {
+    await fetchImageCredits(["Colosseo.jpg", "Trevi.jpg"], { db: t.db });
+    const { calls } = mockWikimedia(ROME_ARTICLES, { licensedFiles: ["Colosseo.jpg"] });
+    const credits = await fetchImageCredits(["Colosseo.jpg", "Trevi.jpg"], { db: t.db });
+    expect(calls).toEqual([]);
+    // Trevi.jpg has no license: its cached "no credit" answer keeps the photo out.
+    expect([...credits.keys()]).toEqual(["Colosseo.jpg"]);
   });
 });

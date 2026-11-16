@@ -46,7 +46,7 @@ export async function createTripAction(
     interests: formData.getAll("interests"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    return { error: parsed.error.issues[0].message };
   }
   const input = parsed.data;
 

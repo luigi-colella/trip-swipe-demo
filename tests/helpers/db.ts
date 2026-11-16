@@ -18,3 +18,12 @@ export function createTestDatabase() {
     },
   };
 }
+
+/** Empties every app table (for test files that share one database across tests). */
+export function resetDatabase(sqlite: ReturnType<typeof openDatabase>["sqlite"]) {
+  sqlite.exec(
+    ["itineraries", "swipes", "trips", "places", "cities", "http_cache", "llm_cache", "rate_limits"]
+      .map((table) => `DELETE FROM ${table};`)
+      .join(" "),
+  );
+}

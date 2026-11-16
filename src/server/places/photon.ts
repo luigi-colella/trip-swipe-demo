@@ -61,7 +61,7 @@ export function parsePhotonResponse(body: unknown): CitySuggestion[] {
 }
 
 /** Small in-memory L1 cache for autocomplete keystrokes (lost on restart by design). */
-class LruCache<V> {
+export class LruCache<V> {
   private map = new Map<string, V>();
   constructor(private readonly max: number) {}
   get(key: string): V | undefined {

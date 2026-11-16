@@ -123,8 +123,8 @@ export function SwipeDeck({
 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
-    const target = e.target as HTMLElement | null;
-    if (target?.closest("input, textarea, select, [contenteditable]")) return;
+    const typing = "input, textarea, select, [contenteditable]";
+    if (e.target instanceof Element && e.target.closest(typing)) return;
     const map: Record<string, SwipeDecision> = {
       ArrowLeft: "skip",
       ArrowRight: "like",
@@ -324,14 +324,15 @@ function DeckCard({
   function showStamps(dx: number, dy: number) {
     const clamp = (v: number) => String(Math.max(0, Math.min(1, v / SWIPE_DISTANCE)));
     const up = -dy > Math.abs(dx);
-    stamps.current.like?.style.setProperty("opacity", up ? "0" : clamp(dx));
-    stamps.current.skip?.style.setProperty("opacity", up ? "0" : clamp(-dx));
-    stamps.current.must?.style.setProperty("opacity", up ? clamp(-dy) : "0");
+    // Only the top card has stamps, and only the top card can be dragged or flung.
+    stamps.current.like!.style.setProperty("opacity", up ? "0" : clamp(dx));
+    stamps.current.skip!.style.setProperty("opacity", up ? "0" : clamp(-dx));
+    stamps.current.must!.style.setProperty("opacity", up ? clamp(-dy) : "0");
   }
 
   function fling(decision: SwipeDecision) {
-    const el = node.current;
-    if (leaving.current || !el) return;
+    if (leaving.current) return;
+    const el = node.current!;
     leaving.current = true;
     if (prefersReducedMotion()) {
       onDecide(decision);
