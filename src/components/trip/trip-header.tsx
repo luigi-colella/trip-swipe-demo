@@ -71,7 +71,8 @@ export function TripHeader({
             );
             return (
               <li key={s.key} className="flex items-center gap-1">
-                {i > 0 && <span className="h-px w-3 bg-border sm:w-6" aria-hidden />}
+                {/* Short connectors on phones: the four steps must fit 360 px. */}
+                {i > 0 && <span className="h-px w-2 bg-border sm:w-6" aria-hidden />}
                 {s.href && !isCurrent ? (
                   <Link
                     href={s.href}
