@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/db-migrate.ts",
+    "db:seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "spike:llm": "node --env-file-if-exists=.env.local --import tsx scripts/spike-llm.ts",
     "test:e2e": "playwright test"

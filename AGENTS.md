@@ -22,6 +22,7 @@ npm run typecheck      # next typegen + tsc
 npm run format         # Prettier
 npm run db:generate    # new migration after editing src/server/db/schema.ts
 npm run db:migrate     # apply migrations + checkpointer tables
+npm run db:seed        # pre-compute demo city place pools (LLM_MODE=live, 1 LLM call per new city; see README)
 npm run spike:llm      # live model checks (needs OPENROUTER_API_KEY in .env.local)
 ```
 
@@ -78,6 +79,8 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
 
 - Unit tests: `tests/unit`. Integration tests (real SQLite in a temp dir): `tests/integration`.
   E2E tests: `tests/e2e` (Playwright, fake LLM, throwaway `data/e2e.db`).
+- Third-party HTTP (Photon, Wikipedia, Commons) is mocked with msw (`tests/helpers/msw.ts`);
+  requests without a handler fail the test, so tests never reach the real network.
 - UI components come from shadcn/ui (`npx shadcn@latest add <component>` → `src/components/ui`).
 - New logic in `src/server` or `src/lib` comes with tests; bug fixes come with a regression test.
 
@@ -91,3 +94,13 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
     `BREAKING CHANGE:` footer.
   - Examples: `feat(places): cache wikipedia summaries in sqlite`, `fix(db): enable foreign keys`.
 - Small, focused commits; one logical change each. Commit only when the owner asks.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
