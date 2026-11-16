@@ -4,7 +4,8 @@ const PORT = 3100;
 
 /**
  * E2E tests run against the production build (`npm run build` first) with a throwaway
- * database and the offline fake LLM, so they never consume provider quota.
+ * database and the offline fake LLM, so they never consume provider quota. tests/e2e/seed.ts
+ * pre-fills the Photon cache and the Rome place pool, so the server never needs the network.
  */
 export default defineConfig({
   testDir: "tests/e2e",
@@ -24,7 +25,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run db:migrate && npx next start -p ${PORT}`,
+    command: `npm run db:migrate && node --import tsx tests/e2e/seed.ts && npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
