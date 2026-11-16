@@ -1,0 +1,64 @@
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { SwipeDeck } from "@/components/swipe/swipe-deck";
+import { DeckSkeleton, TripHeaderSkeleton } from "@/components/trip/skeletons";
+import { TripHeader } from "@/components/trip/trip-header";
+import { db } from "@/server/db/client";
+import { findPlacesForTrip } from "@/server/places/discover";
+import { discoveryDeps } from "@/server/places/deps";
+import { loadTripOr404 } from "@/server/trips/load";
+import { buildDeck, getSwipeHistory, type TripWithCity } from "@/server/trips/trips";
+
+export const metadata: Metadata = { title: "Swipe · TravelSwipe AI" };
+
+/** F2/F3: the header streams first; the deck may wait for place discovery on a new city. */
+export default function SwipePage({ params }: PageProps<"/trip/[id]/swipe">) {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <TripHeaderSkeleton />
+          <DeckSkeleton />
+        </>
+      }
+    >
+      {params.then(({ id }) => (
+        <SwipeContent id={id} />
+      ))}
+    </Suspense>
+  );
+}
+
+async function SwipeContent({ id }: { id: string }) {
+  const found = await loadTripOr404(id);
+  const { trip, city } = found;
+  return (
+    <>
+      <TripHeader
+        tripId={trip.id}
+        city={city.name}
+        days={trip.days}
+        pace={trip.pace}
+        status={trip.status}
+        current="swipe"
+      />
+      <Suspense fallback={<DeckSkeleton message={`Finding the best of ${city.name}…`} />}>
+        <Deck found={found} />
+      </Suspense>
+    </>
+  );
+}
+
+async function Deck({ found: { trip, city } }: { found: TripWithCity }) {
+  // Cache-first: one LLM call only the first time anyone opens this city.
+  const pool = await findPlacesForTrip(city, trip.interests, discoveryDeps);
+  const { deck, history } = buildDeck(pool, getSwipeHistory(db, trip.id), trip.interests);
+  return (
+    <SwipeDeck
+      tripId={trip.id}
+      interests={trip.interests}
+      initialDeck={deck}
+      initialHistory={history}
+    />
+  );
+}
