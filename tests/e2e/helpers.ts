@@ -70,3 +70,22 @@ export async function planRomeTrip(page: Page) {
   await expect(page).toHaveURL(/\/trip\/[0-9a-f-]{36}\/itinerary$/);
   await hydrated(page.getByRole("button", { name: "New plan" }));
 }
+
+/** F6: the chat is a pane on desktop and a bottom sheet (opened from a button) on mobile. */
+export async function openChat(page: Page, isMobile: boolean) {
+  if (isMobile) {
+    const open = page.getByRole("button", { name: "Open the trip assistant" });
+    await hydrated(open);
+    await open.click();
+  }
+  const input = page.getByRole("textbox", { name: "Message" });
+  await hydrated(input);
+  return input;
+}
+
+/** Sends a chat message and waits for the streamed reply. */
+export async function chat(page: Page, message: string, reply: string | RegExp) {
+  await page.getByRole("textbox", { name: "Message" }).fill(message);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("log", { name: "Conversation" }).getByText(reply)).toBeVisible();
+}

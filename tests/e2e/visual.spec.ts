@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createRomeTrip, hydrated, likeEverything, planRomeTrip, serveBlankTiles } from "./helpers";
+import {
+  chat,
+  createRomeTrip,
+  hydrated,
+  likeEverything,
+  openChat,
+  planRomeTrip,
+  serveBlankTiles,
+} from "./helpers";
 
 /**
  * Screenshot tests: each key screen is compared with a reference image (mobile and desktop).
@@ -9,6 +17,10 @@ import { createRomeTrip, hydrated, likeEverything, planRomeTrip, serveBlankTiles
  */
 
 async function snap(page: Page, name: string) {
+  // On desktop the chat pane loads its code after hydration: wait until it is ready.
+  if (page.viewportSize()!.width >= 1024) {
+    await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+  }
   // Web fonts must be loaded, or text metrics differ between runs.
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true });
@@ -86,4 +98,21 @@ test("not found", async ({ page }) => {
   await page.goto("/trip/00000000-0000-4000-8000-000000000000/swipe");
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
   await snap(page, "not-found");
+});
+
+test("chat on the home page", async ({ page, isMobile }) => {
+  await page.goto("/");
+  await openChat(page, isMobile);
+  await expect(page.getByRole("button", { name: "Plan a trip to Rome for 3 days" })).toBeVisible();
+  await snap(page, "chat-home");
+});
+
+test("chat conversation", async ({ page, isMobile }) => {
+  await page.goto("/");
+  await openChat(page, isMobile);
+  await chat(page, "Plan a trip to Rome for 2 days", /Created a trip to Rome/);
+  await expect(page.getByText("Place 1 of 8")).toBeVisible();
+  await chat(page, "Add the Colosseum", "Added Colosseum to the shortlist.");
+  await expect(page.getByText("1 in shortlist")).toBeVisible();
+  await snap(page, "chat-conversation");
 });
