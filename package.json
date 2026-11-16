@@ -22,10 +22,13 @@
     "test:e2e:update-screenshots": "playwright test --update-snapshots"
   },
   "dependencies": {
+    "@ai-sdk/langchain": "^3.0.173",
+    "@ai-sdk/react": "^4.0.177",
     "@langchain/core": "^1.4.1",
     "@langchain/langgraph": "^1.7.4",
     "@langchain/langgraph-checkpoint-sqlite": "^1.1.0",
     "@langchain/openai": "^1.8.4",
+    "ai": "^7.0.173",
     "better-sqlite3": "^13.2.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
