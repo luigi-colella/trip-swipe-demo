@@ -9,6 +9,7 @@
  */
 import { parseArgs } from "node:util";
 import { awaitAllCallbacks } from "@langchain/core/callbacks/promises";
+import { LlmBudget } from "../src/server/ai/budget";
 import { SqliteLlmCache } from "../src/server/ai/cache";
 import { openDatabase, runMigrations } from "../src/server/db/connection";
 import { parseEnv } from "../src/server/env-schema";
@@ -61,7 +62,9 @@ async function main() {
   }
   const { db, sqlite } = openDatabase(env.DATABASE_PATH);
   runMigrations(db);
-  const deps: DiscoveryDeps = { db, env, llmCache: new SqliteLlmCache(db) };
+  // Seeding spends the same free quota as the app, so it counts against the daily budget.
+  const budget = new LlmBudget(db, env.LLM_DAILY_BUDGET);
+  const deps: DiscoveryDeps = { db, env, llmCache: new SqliteLlmCache(db), budget };
 
   const summary: { city: string; status: string; places: number }[] = [];
   for (const [name, countryCode] of targets) {
@@ -81,6 +84,7 @@ async function main() {
   }
 
   console.table(summary);
+  console.log(`LLM requests today: ${budget.used()}/${budget.limit}`);
   sqlite.close();
   // Flush pending LangSmith traces before the process exits.
   await awaitAllCallbacks();

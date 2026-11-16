@@ -7,6 +7,7 @@ import { ZodError } from "zod";
 import { paceMinutes, type ItineraryData } from "@/lib/itinerary";
 import { PACE_LABELS, type Pace } from "@/lib/trip";
 import { fakePlannerResponse } from "@/server/ai/fake";
+import type { LlmBudget } from "@/server/ai/budget";
 import { getChatModel, type ChatModelOptions } from "@/server/ai/models";
 import {
   PlannerOutputSchema,
@@ -29,6 +30,7 @@ import { validatePlan } from "./validate";
 export type PlannerDeps = {
   env: Pick<Env, "LLM_MODE" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL">;
   llmCache?: BaseCache;
+  budget?: LlmBudget;
   /** Overrides the scripted planner used in LLM_MODE=fake (tests). */
   fake?: ChatModelOptions["fake"];
 };
@@ -145,6 +147,7 @@ export function buildPlannerGraph(deps: PlannerDeps) {
           (() => new FakeListChatModel({ responses: [fakePlannerResponse(fakeDraft)] })),
         // A request for an alternative must not be answered from the cache.
         cache: s.input.previous ? undefined : deps.llmCache,
+        budget: deps.budget,
       })
         .withStructuredOutput(PlannerOutputSchema, { name: "itinerary" })
         .withConfig({ runName: "plan_itinerary", tags: ["workflow-b"] });

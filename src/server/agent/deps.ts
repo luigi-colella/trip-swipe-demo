@@ -1,4 +1,5 @@
 import "server-only";
+import { llmBudget } from "@/server/ai/runtime";
 import { db, sqlite } from "@/server/db/client";
 import { env } from "@/server/env";
 import { plannerDeps } from "@/server/itinerary/deps";
@@ -13,4 +14,5 @@ export const chatDeps: ChatDeps = {
   checkpointer: createCheckpointer(sqlite),
   discovery: discoveryDeps,
   planner: plannerDeps,
+  budget: llmBudget,
 };

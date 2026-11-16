@@ -1,5 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/chat/route";
+import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
+import { llmBudget } from "@/server/ai/runtime";
+import { addToWindow, DAY_MS, HOUR_MS } from "@/server/limits/rate-limits";
 import { loadChatHistoryAction } from "@/server/actions/chat";
 import { db, sqlite } from "@/server/db/client";
 import { upsertCity } from "@/server/places/cities";
@@ -90,6 +93,28 @@ describe("POST /api/chat", () => {
       503,
       "The assistant is unavailable right now. Please try again.",
     ]);
+  });
+});
+
+describe("POST /api/chat limits (LLM10)", () => {
+  it("rate limits turns per client and per trip, without running them", async () => {
+    addToWindow(db, `chat:trip:${trip.id}`, DAY_MS, new Date(), { atLeast: 40 });
+    let res = await post({ tripId: trip.id, text: "hello" });
+    expect(res.status).toBe(429);
+    expect(await res.text()).toMatch(
+      /^Too many requests\. Please try again in \d+ (minutes?|hours)\.$/,
+    );
+    expect(await loadChatHistoryAction(trip.id)).toEqual([]);
+
+    addToWindow(db, "chat:ip:unknown", HOUR_MS, new Date(), { atLeast: 20 });
+    res = await post({ text: "hello" });
+    expect(res.status).toBe(429);
+  });
+
+  it("refuses turns up front while the daily LLM budget is used up", async () => {
+    llmBudget.markExhausted();
+    const res = await post({ tripId: trip.id, text: "hello" });
+    expect([res.status, await res.text()]).toEqual([503, AI_PAUSED_MESSAGE]);
   });
 });
 

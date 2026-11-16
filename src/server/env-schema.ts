@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** A non-negative whole number given as text (environment variables are strings). */
+const Count = z.coerce.number().int().min(0);
+
 /**
  * Server-side environment, validated once at startup.
  * The OpenRouter key is only required when LLM_MODE=live.
@@ -12,6 +15,13 @@ const EnvSchema = z
     LLM_MODE: z.enum(["fake", "live"]).default("fake"),
     OPENROUTER_API_KEY: z.string().optional(),
     OPENROUTER_MODEL: z.string().default("openrouter/free"),
+
+    // LLM10: live LLM requests per UTC day (OpenRouter's free tier allows ~50) and per-client
+    // limits (a budget of 0 pauses every AI feature).
+    LLM_DAILY_BUDGET: Count.default(45),
+    RATE_LIMIT_CHAT_PER_HOUR: Count.default(20),
+    RATE_LIMIT_CHAT_PER_TRIP_PER_DAY: Count.default(40),
+    RATE_LIMIT_AI_ACTIONS_PER_HOUR: Count.default(10),
 
     LANGSMITH_TRACING: z.enum(["true", "false"]).default("false"),
     LANGSMITH_API_KEY: z.string().optional(),

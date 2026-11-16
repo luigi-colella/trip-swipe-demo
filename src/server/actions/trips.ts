@@ -6,7 +6,10 @@ import { z } from "zod";
 import type { PlaceCard } from "@/lib/places";
 import { SWIPE_DECISIONS } from "@/lib/trip";
 import { TripIdSchema, TripSetupSchema } from "@/lib/trip-schemas";
+import { aiBusyText, isAiBusyError } from "@/server/ai/budget";
+import { llmBudget } from "@/server/ai/runtime";
 import { db } from "@/server/db/client";
+import { limitAiAction } from "@/server/limits/request";
 import { upsertCity } from "@/server/places/cities";
 import { loadMorePlaces } from "@/server/places/discover";
 import { discoveryDeps } from "@/server/places/deps";
@@ -50,6 +53,9 @@ export async function createTripAction(
     return { error: parsed.error.issues[0].message };
   }
   const input = parsed.data;
+  // A new trip may start place discovery (an LLM call) for a city nobody has visited yet.
+  const limited = await limitAiAction();
+  if (limited) return { error: limited };
 
   let tripId: string;
   try {
@@ -109,10 +115,13 @@ export async function loadMorePlacesAction(tripId: string): Promise<ActionResult
   if (!id.success) return fail("Invalid trip.");
   const found = getTrip(db, id.data);
   if (!found) return fail("Trip not found.");
+  const limited = await limitAiAction();
+  if (limited) return fail(limited);
   try {
     const report = await loadMorePlaces(found.city, discoveryDeps);
     return { ok: true, data: report.added.map(toPlaceCard) };
   } catch (err) {
+    if (isAiBusyError(err)) return fail(aiBusyText(llmBudget));
     console.error("loadMorePlaces failed", err);
     return fail("Could not find more places right now, please retry.");
   }

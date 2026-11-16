@@ -10,6 +10,7 @@ import {
 } from "@/lib/places";
 import { rankByInterests } from "@/lib/ranking";
 import { fakeDiscoveryResponse } from "@/server/ai/fake";
+import type { LlmBudget } from "@/server/ai/budget";
 import { getChatModel, type ChatModelOptions } from "@/server/ai/models";
 import { DiscoveryOutputSchema, discoveryMessages } from "@/server/ai/prompts";
 import type { Env } from "@/server/env-schema";
@@ -37,6 +38,7 @@ export type Place = typeof places.$inferSelect;
 export type DiscoveryDeps = HttpDeps & {
   env: Pick<Env, "LLM_MODE" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL">;
   llmCache?: BaseCache;
+  budget?: LlmBudget;
 };
 
 /** Candidates requested on the first visit to a city and on each "Load more". */
@@ -87,6 +89,7 @@ async function generateCandidates(
   const options: ChatModelOptions = {
     fake: () => new FakeListChatModel({ responses: [fakeDiscoveryResponse(city.name, exclude)] }),
     cache: deps.llmCache,
+    budget: deps.budget,
   };
   const model = getChatModel("discovery", deps.env, options)
     .withStructuredOutput(DiscoveryOutputSchema, { name: "attractions" })

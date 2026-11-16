@@ -16,7 +16,10 @@ import {
   undoSwipeAction,
   updateShortlistAction,
 } from "@/server/actions/trips";
+import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
+import { llmBudget } from "@/server/ai/runtime";
 import { plannerDeps } from "@/server/itinerary/deps";
+import { addToWindow, HOUR_MS } from "@/server/limits/rate-limits";
 import { getLatestItinerary } from "@/server/itinerary/itineraries";
 import { upsertCity, type City } from "@/server/places/cities";
 import { createTrip, getSwipeHistory, getTrip, recordSwipe, type Trip } from "@/server/trips/trips";
@@ -41,6 +44,15 @@ vi.mock("next/navigation", () => ({
 }));
 const refresh = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({ refresh }));
+const CLIENT_IP = "203.0.113.5";
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "203.0.113.5" }),
+}));
+
+/** Uses up the client's AI actions for this hour (the default limit is 10). */
+function useUpAiActions() {
+  addToWindow(db, `ai:ip:${CLIENT_IP}`, HOUR_MS, new Date(), { atLeast: 10 });
+}
 
 const ROME = {
   osmRef: "R41485",
@@ -119,6 +131,13 @@ describe("createTripAction (F1)", () => {
     ).toEqual({ error: "Pick a city from the suggestions." });
   });
 
+  it("is rate limited per client, before any work", async () => {
+    useUpAiActions();
+    expect(await createTripAction(undefined, form(valid))).toEqual({
+      error: expect.stringMatching(/^Too many requests\. Please try again in \d+ minutes?\.$/),
+    });
+  });
+
   it("explains when city search is down", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     server.use(http.get("https://photon.komoot.io/api/", () => HttpResponse.error()));
@@ -179,6 +198,17 @@ describe("loadMorePlacesAction (F3)", () => {
     expect(await loadMorePlacesAction(trip.id)).toEqual({
       ok: false,
       error: "Could not find more places right now, please retry.",
+    });
+  });
+
+  it("says when the AI is busy, and is rate limited", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    llmBudget.markExhausted();
+    expect(await loadMorePlacesAction(trip.id)).toEqual({ ok: false, error: AI_PAUSED_MESSAGE });
+    useUpAiActions();
+    expect(await loadMorePlacesAction(trip.id)).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/^Too many requests/),
     });
   });
 });
@@ -266,6 +296,18 @@ describe("itinerary actions (F4)", () => {
     const error = { ok: false, error: "Could not plan the trip right now, please retry." };
     expect(await generateItineraryAction(trip.id)).toEqual(error);
     expect(await regenerateItineraryAction(trip.id)).toEqual(error);
+  });
+
+  it("rate limits planning per client", async () => {
+    recordSwipe(db, trip, addPlace("Colosseum").id, "like");
+    useUpAiActions();
+    for (const action of [generateItineraryAction, regenerateItineraryAction]) {
+      expect(await action(trip.id)).toMatchObject({
+        ok: false,
+        error: expect.stringMatching(/^Too many requests/),
+      });
+    }
+    expect(getLatestItinerary(db, trip.id)).toBeFalsy();
   });
 
   it("regenerates, edits and undoes, refreshing the page each time", async () => {

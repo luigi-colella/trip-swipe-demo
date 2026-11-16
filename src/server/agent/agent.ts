@@ -2,6 +2,7 @@ import { toUIMessageStream } from "@ai-sdk/langchain";
 import type { BaseLanguageModelInput } from "@langchain/core/language_models/base";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { RunnableLambda } from "@langchain/core/runnables";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import type { UIMessageChunk } from "ai";
 import {
@@ -11,10 +12,12 @@ import {
   toolCallLimitMiddleware,
 } from "langchain";
 import { MAX_HOME_HISTORY, type ChatHistoryEntry } from "@/lib/chat";
+import { aiBusyText, isAiBusyError, type LlmBudget } from "@/server/ai/budget";
 import { FakeAgentModel } from "@/server/ai/fake-agent";
 import { getChatModel, type ChatModelOptions } from "@/server/ai/models";
 import { AGENT_SYSTEM, agentTripContext } from "@/server/ai/prompts";
 import type { Env } from "@/server/env-schema";
+import { detectPromptAttack, GUARDRAIL_REPLIES, redactPii, type GuardrailHit } from "./guardrails";
 import { buildTripSnapshot } from "./snapshot";
 import { createAgentTools } from "./tools";
 import type { AgentDeps, AgentSession } from "./trip-ops";
@@ -30,6 +33,8 @@ import type { AgentDeps, AgentSession } from "./trip-ops";
 export type ChatDeps = AgentDeps & {
   env: Pick<Env, "LLM_MODE" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL">;
   checkpointer: BaseCheckpointSaver;
+  /** Daily LLM budget (LLM10): turns fail with "AI is busy" once it is used up. */
+  budget?: LlmBudget;
   /** Overrides the scripted agent used in LLM_MODE=fake (tests). */
   fake?: ChatModelOptions["fake"];
 };
@@ -86,6 +91,7 @@ export function createChatAgent(
 ) {
   const model: BaseChatModel = getChatModel("agent", deps.env, {
     fake: deps.fake ?? (() => new FakeAgentModel()),
+    budget: deps.budget,
   });
   return createAgent({
     name: "chat_agent",
@@ -124,12 +130,16 @@ const running = new Set<string>();
 
 /**
  * Runs one chat turn and streams it as AI SDK UI message chunks. Throws ChatBusyError when the
- * trip's previous turn is still running; later failures become a generic error chunk.
+ * trip's previous turn is still running; later failures become a short error chunk. Messages
+ * that trip a guardrail get a standard refusal without calling the model.
  */
 export async function streamChatTurn(
   deps: ChatDeps,
   turn: ChatTurn,
 ): Promise<ReadableStream<UIMessageChunk>> {
+  const hit = detectPromptAttack(turn.text);
+  if (hit) return refuse(hit, turn.text);
+
   const threadId = turn.tripId;
   if (threadId && running.has(threadId)) throw new ChatBusyError();
 
@@ -138,9 +148,10 @@ export async function streamChatTurn(
     ...(threadId
       ? []
       : (turn.history ?? []).map((h) =>
-          h.role === "user" ? new HumanMessage(h.text) : new AIMessage(h.text),
+          h.role === "user" ? new HumanMessage(redactPii(h.text)) : new AIMessage(h.text),
         )),
-    new HumanMessage(turn.text),
+    // LLM02: personal data never reaches the model or the checkpointer.
+    new HumanMessage(redactPii(turn.text)),
   ];
   const agent = createChatAgent(deps, session, threadId ? deps.checkpointer : undefined);
 
@@ -148,6 +159,7 @@ export async function streamChatTurn(
   const release = () => {
     if (threadId) running.delete(threadId);
   };
+  let failure: unknown;
   try {
     const stream = await agent.stream(
       { messages: input as BaseMessage[] },
@@ -158,6 +170,7 @@ export async function streamChatTurn(
       },
     );
     return sanitizeErrors(
+      () => chatErrorText(deps, failure),
       toUIMessageStream<{ messages: BaseMessage[] }>(stream, {
         onFinish: async (state) => {
           release();
@@ -166,7 +179,8 @@ export async function streamChatTurn(
         },
         onError: (err) => {
           release();
-          console.error("Chat turn failed", err);
+          failure = err;
+          if (!isAiBusyError(err)) console.error("Chat turn failed", err);
         },
         onAbort: release,
       }),
@@ -177,15 +191,54 @@ export async function streamChatTurn(
   }
 }
 
+/** What the user is told when a turn fails: "AI is busy" or a generic message. */
+export function chatErrorText(deps: Pick<ChatDeps, "budget">, err: unknown): string {
+  return isAiBusyError(err) ? aiBusyText(deps.budget) : CHAT_ERROR_TEXT;
+}
+
 /** Provider and internal error messages never reach the browser. */
-function sanitizeErrors(stream: ReadableStream<UIMessageChunk>): ReadableStream<UIMessageChunk> {
+function sanitizeErrors(
+  errorText: () => string,
+  stream: ReadableStream<UIMessageChunk>,
+): ReadableStream<UIMessageChunk> {
   return stream.pipeThrough(
     new TransformStream<UIMessageChunk, UIMessageChunk>({
       transform(chunk, controller) {
         controller.enqueue(
-          chunk.type === "error" ? { type: "error", errorText: CHAT_ERROR_TEXT } : chunk,
+          chunk.type === "error" ? { type: "error", errorText: errorText() } : chunk,
         );
       },
     }),
   );
+}
+
+/**
+ * The standard refusal for a guardrail hit, streamed like a reply. It is logged and traced
+ * (tagged `guardrail:<hit>` in LangSmith) but not added to the conversation.
+ */
+async function refuse(hit: GuardrailHit, text: string): Promise<ReadableStream<UIMessageChunk>> {
+  console.warn(`Chat guardrail: ${hit}`);
+  const reply = await RunnableLambda.from(() => GUARDRAIL_REPLIES[hit]).invoke(text, {
+    runName: "chat_guardrail",
+    tags: ["guardrail", `guardrail:${hit}`],
+  });
+  return textReply(reply);
+}
+
+/** A complete assistant message as UI message chunks. */
+function textReply(text: string): ReadableStream<UIMessageChunk> {
+  const id = crypto.randomUUID();
+  const chunks: UIMessageChunk[] = [
+    { type: "start" },
+    { type: "text-start", id },
+    { type: "text-delta", id, delta: text },
+    { type: "text-end", id },
+    { type: "finish" },
+  ];
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
 }

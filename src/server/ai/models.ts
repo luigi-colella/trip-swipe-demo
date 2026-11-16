@@ -3,6 +3,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { ChatOpenAI } from "@langchain/openai";
 import type { Env } from "@/server/env-schema";
+import { BudgetGuard, budgetedFetch, type LlmBudget } from "./budget";
 
 export type ModelRole = "agent" | "planner" | "discovery";
 
@@ -13,11 +14,15 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
  * maxTokens also covers the hidden reasoning of the reasoning models openrouter/free often
  * picks: 40 discovery candidates (~3.5k JSON tokens) overflowed 4096 on the first live run,
  * so the planner (up to ~40 stops plus reasoning) gets the same headroom.
+ * timeoutMs bounds each request (LLM10); a timed-out request is retried like a 5xx.
  */
-export const ROLE_SETTINGS: Record<ModelRole, { temperature: number; maxTokens: number }> = {
-  agent: { temperature: 0.4, maxTokens: 1024 },
-  planner: { temperature: 0.2, maxTokens: 8192 },
-  discovery: { temperature: 0.3, maxTokens: 16_384 },
+export const ROLE_SETTINGS: Record<
+  ModelRole,
+  { temperature: number; maxTokens: number; timeoutMs: number }
+> = {
+  agent: { temperature: 0.4, maxTokens: 1024, timeoutMs: 60_000 },
+  planner: { temperature: 0.2, maxTokens: 8192, timeoutMs: 120_000 },
+  discovery: { temperature: 0.3, maxTokens: 16_384, timeoutMs: 180_000 },
 };
 
 /** Roles whose answers depend only on the prompt, so an exact-match cache is safe. */
@@ -29,20 +34,22 @@ type ModelEnv = Pick<Env, "LLM_MODE" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL"
 export function createOpenRouterModel(
   role: ModelRole,
   env: ModelEnv,
-  cache?: BaseCache,
+  { cache, budget }: Pick<ChatModelOptions, "cache" | "budget"> = {},
 ): BaseChatModel {
   const s = ROLE_SETTINGS[role];
   return new ChatOpenAI({
-    // Must be a constructor field: ChatOpenAI rebuilds itself from its fields in
-    // withStructuredOutput / bindTools, so a cache assigned afterwards is silently dropped.
+    // Must be constructor fields: ChatOpenAI rebuilds itself from its fields in
+    // withStructuredOutput / bindTools, so a cache or callback assigned afterwards is dropped.
     cache,
+    callbacks: budget && [new BudgetGuard(budget)],
     apiKey: env.OPENROUTER_API_KEY,
     model: env.OPENROUTER_MODEL,
     temperature: s.temperature,
     maxTokens: s.maxTokens,
+    timeout: s.timeoutMs,
     // Retries with backoff on 429/5xx; free models are rate limited per minute.
     maxRetries: 2,
-    configuration: { baseURL: OPENROUTER_BASE_URL },
+    configuration: { baseURL: OPENROUTER_BASE_URL, fetch: budget && budgetedFetch(budget) },
   });
 }
 
@@ -56,6 +63,8 @@ export type ChatModelOptions = {
   fake?: () => BaseChatModel;
   /** Exact-match cache (e.g. SqliteLlmCache); ignored for roles that must not be cached. */
   cache?: BaseCache;
+  /** Daily LLM budget: calls are refused once it is used up, provider requests are counted. */
+  budget?: LlmBudget;
 };
 
 /**
@@ -64,11 +73,14 @@ export type ChatModelOptions = {
 export function getChatModel(
   role: ModelRole,
   env: ModelEnv,
-  { fake = () => createFakeModel(), cache }: ChatModelOptions = {},
+  { fake = () => createFakeModel(), cache, budget }: ChatModelOptions = {},
 ): BaseChatModel {
   const roleCache = CACHEABLE_ROLES.has(role) ? cache : undefined;
-  if (env.LLM_MODE !== "fake") return createOpenRouterModel(role, env, roleCache);
+  if (env.LLM_MODE !== "fake")
+    return createOpenRouterModel(role, env, { cache: roleCache, budget });
+  // Fake models make no requests, so nothing is counted; the guard still applies.
   const model = fake();
   if (roleCache) model.cache = roleCache;
+  if (budget) model.callbacks = [new BudgetGuard(budget)];
   return model;
 }

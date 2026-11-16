@@ -7,6 +7,7 @@ import { ItineraryEditSchema } from "@/lib/itinerary-schemas";
 import { TripIdSchema } from "@/lib/trip-schemas";
 import { db } from "@/server/db/client";
 import { plannerDeps } from "@/server/itinerary/deps";
+import { limitAiAction } from "@/server/limits/request";
 import {
   EmptyShortlistError,
   editItinerary,
@@ -32,6 +33,8 @@ function findTrip(tripId: string) {
 export async function generateItineraryAction(tripId: string): Promise<ActionResult> {
   const found = findTrip(tripId);
   if (!found) return fail("Trip not found.");
+  const limited = await limitAiAction();
+  if (limited) return fail(limited);
   try {
     await generateItinerary(db, found, plannerDeps);
   } catch (err) {
@@ -48,6 +51,8 @@ export async function regenerateItineraryAction(
 ): Promise<ActionResult<{ source: ItinerarySource }>> {
   const found = findTrip(tripId);
   if (!found) return fail("Trip not found.");
+  const limited = await limitAiAction();
+  if (limited) return fail(limited);
   try {
     const result = await generateItinerary(db, found, plannerDeps, { regenerate: true });
     refresh();
