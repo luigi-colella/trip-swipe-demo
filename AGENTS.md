@@ -16,7 +16,9 @@ the only LLM provider (for now).
 ```bash
 npm run dev            # dev server (http://localhost:3000)
 npm test               # Vitest, offline (LLM_MODE=fake)
+npm run test:coverage  # Vitest with coverage; fails below 100% of src/
 npm run test:e2e       # Playwright (mobile + desktop) against the production build; run `npm run build` first
+npm run test:e2e:update-screenshots  # regenerate screenshot references after an intended UI change
 npm run lint           # ESLint
 npm run typecheck      # next typegen + tsc
 npm run format         # Prettier
@@ -78,7 +80,19 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
 ## Testing
 
 - Unit tests: `tests/unit`. Integration tests (real SQLite in a temp dir): `tests/integration`.
+  Component tests (Testing Library + happy-dom, Server Actions mocked): `tests/components`.
   E2E tests: `tests/e2e` (Playwright, fake LLM, throwaway `data/e2e.db`).
+- **Coverage stays at 100%** of `src/` (statements, branches, functions, lines; no exclusions,
+  no `v8 ignore` comments). Every change to `src/` comes with the tests that keep it there,
+  including edge cases: empty and boundary inputs, error and fallback paths, rejected or
+  stale input. Remove impossible branches instead of testing around them. A Claude Code Stop
+  hook (`.claude/settings.json` → `scripts/coverage-hook.mjs`) runs the coverage check when
+  `src/` or the tests changed.
+- **Every UI/UX feature gets screenshot tests** in `tests/e2e/visual.spec.ts` (mobile and
+  desktop) for its new screens and states. Reference images live in `tests/e2e/__screenshots__`;
+  for now they exist for Windows only and comparisons are skipped on other platforms (CI
+  included). After an intended UI change, run `npm run test:e2e:update-screenshots` and review
+  the new images before committing them.
 - Third-party HTTP (Photon, Wikipedia, Commons) is mocked with msw (`tests/helpers/msw.ts`);
   requests without a handler fail the test, so tests never reach the real network.
 - UI components come from shadcn/ui (`npx shadcn@latest add <component>` → `src/components/ui`).

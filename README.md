@@ -71,9 +71,28 @@ npm run db:seed -- --cities Rome,Florence  # a subset (names as listed in script
   invalidates `llm_cache`.
 - **Start over:** delete `data/app.db*`, then `npm run db:migrate && npm run db:seed`.
 
+## Itinerary planning
+
+"Generate itinerary" turns the shortlist into a day-by-day plan with a LangGraph workflow
+(`src/server/itinerary/graph.ts`): code clusters nearby places into days and drafts a feasible
+plan, the planner model refines it (titles, order, tips, what to leave out), and a validator
+checks it. Invalid answers get up to two repair rounds; if the model still fails, or the
+provider is unavailable, the deterministic draft is used and labelled "Planned by rules".
+
+- **Cost:** 1 OpenRouter request per plan (up to 3 with repairs). The first plan for a given
+  shortlist is cached in `llm_cache`; "New plan" always asks the model again.
+- **Schedule rules:** days start at 09:00; travel is estimated from straight-line distance
+  × 1.3 (walking up to 2 km at 4.5 km/h, otherwise public transport at 20 km/h + 10 min);
+  a 60-minute lunch break follows the stop in progress at 12:30. The pace sets the daily
+  visits + travel budget (6/8/10 h). Must-see places are never left out.
+- **Quick actions** (move, change day, remove) and undo are deterministic and instant; every
+  change is saved as a new version, and undo steps back one version.
+- The map uses OpenStreetMap tiles (free, attribution shown, light use only); each day can be
+  opened in Google Maps as walking directions.
+
 ## Tracing with LangSmith (optional)
 
-Every LLM call (e.g. `discover_places`, tagged `workflow-a`) can be traced to
+Every LLM call (e.g. `discover_places`, tagged `workflow-a`, or the `itinerary_planner` graph, tagged `workflow-b`) can be traced to
 [LangSmith](https://smith.langchain.com) on the free Developer plan. LangChain reads the
 `LANGSMITH_*` variables by itself; the app only validates them at startup.
 
@@ -92,8 +111,10 @@ Traces contain prompts and model outputs (city names and attraction lists, no pe
 | Command                                            | Purpose                                                                                                         |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                                         |
-| `npm test`                                         | Vitest unit + integration tests (offline, `LLM_MODE=fake`)                                                      |
+| `npm test`                                         | Vitest unit, integration and component tests (offline, `LLM_MODE=fake`)                                         |
+| `npm run test:coverage`                            | The same tests with coverage; fails below 100% of `src/`                                                        |
 | `npm run test:e2e`                                 | Playwright smoke tests on mobile + desktop (after `npm run build`; first run `npx playwright install chromium`) |
+| `npm run test:e2e:update-screenshots`              | Regenerates the screenshot references (Windows only for now) after an intended UI change                        |
 | `npm run lint` / `typecheck` / `format`            | Code quality                                                                                                    |
 | `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                               |
 | `npm run db:seed`                                  | Discovers and caches the places of ~25 demo cities; resumable, `-- --cities Rome,Paris` for a subset            |
