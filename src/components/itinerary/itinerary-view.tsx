@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import {
   ExternalLink,
@@ -37,6 +37,7 @@ import {
   undoItineraryAction,
 } from "@/server/actions/itinerary";
 import type { MapStop } from "@/components/map/itinerary-map";
+import { useIsDesktop } from "@/components/use-is-desktop";
 import { DayTimeline } from "./day-timeline";
 
 function MapSkeleton() {
@@ -48,19 +49,6 @@ const ItineraryMap = dynamic(() => import("@/components/map/itinerary-map"), {
   ssr: false,
   loading: MapSkeleton,
 });
-
-const DESKTOP_QUERY = "(min-width: 1024px)";
-function useIsDesktop() {
-  return useSyncExternalStore(
-    (onChange) => {
-      const mq = window.matchMedia(DESKTOP_QUERY);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(DESKTOP_QUERY).matches,
-    () => false,
-  );
-}
 
 function reduceEdit(data: ItineraryData, edit: ItineraryEdit): ItineraryData {
   return applyItineraryEdit(data, edit) ?? data;

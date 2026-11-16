@@ -119,6 +119,10 @@ describe("static pages", () => {
     expect(html).toContain("<p>Child page</p>");
     expect(html).toContain("has-data-wide:max-w-6xl");
     expect(html).toContain("group-has-data-wide/body:max-w-6xl");
+    // The chat (F6) is on every page: a pane that the body makes room for, and a button.
+    expect(html).toContain("lg:has-data-chat-open:pr-95");
+    expect(html).toContain('data-chat-open=""');
+    expect(html).toContain("Open the trip assistant");
   });
 });
 

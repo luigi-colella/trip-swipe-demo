@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { SwipeDeck } from "@/components/swipe/swipe-deck";
 import { DeckSkeleton, TripHeaderSkeleton } from "@/components/trip/skeletons";
 import { TripHeader } from "@/components/trip/trip-header";
+import { deckVersion } from "@/lib/deck";
 import { db } from "@/server/db/client";
 import { findPlacesForTrip } from "@/server/places/discover";
 import { discoveryDeps } from "@/server/places/deps";
@@ -55,6 +56,8 @@ async function Deck({ found: { trip, city } }: { found: TripWithCity }) {
   const { deck, history } = buildDeck(pool, getSwipeHistory(db, trip.id), trip.interests);
   return (
     <SwipeDeck
+      // Remounts with the server's state when the chat agent changed the deck.
+      key={deckVersion(deck, history)}
       tripId={trip.id}
       interests={trip.interests}
       initialDeck={deck}
