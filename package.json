@@ -18,6 +18,7 @@
     "db:seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "spike:llm": "node --env-file-if-exists=.env.local --import tsx scripts/spike-llm.ts",
+    "evals": "node --env-file-if-exists=.env.local --import tsx scripts/evals.ts",
     "test:e2e": "playwright test",
     "test:e2e:update-screenshots": "playwright test --update-snapshots"
   },
