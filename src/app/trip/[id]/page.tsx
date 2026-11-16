@@ -15,5 +15,6 @@ export default function TripPage({ params }: PageProps<"/trip/[id]">) {
 
 async function RedirectToStep({ id }: { id: string }): Promise<never> {
   const { trip } = await loadTripOr404(id);
-  redirect(`/trip/${trip.id}/${trip.status === "swiping" ? "swipe" : "review"}`);
+  const step = { swiping: "swipe", review: "review", itinerary: "itinerary" }[trip.status];
+  redirect(`/trip/${trip.id}/${step}`);
 }

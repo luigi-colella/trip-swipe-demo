@@ -2,7 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock, Sparkles, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, LoaderCircle, Sparkles, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { PlacePhoto } from "@/components/swipe/place-photo";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import type { DeckEntry } from "@/lib/deck";
 import { formatVisitTime, humanizeSlug } from "@/lib/places";
 import type { SwipeDecision } from "@/lib/trip";
+import { generateItineraryAction } from "@/server/actions/itinerary";
 import { updateShortlistAction } from "@/server/actions/trips";
 
 type Change = { placeId: string; decision: SwipeDecision };
@@ -25,7 +26,16 @@ function applyChange(entries: DeckEntry[], change: Change): DeckEntry[] {
 export function Shortlist({ tripId, entries }: { tripId: string; entries: DeckEntry[] }) {
   const [optimistic, apply] = useOptimistic(entries, applyChange);
   const [, startTransition] = useTransition();
+  const [planning, startPlanning] = useTransition();
   const swipeHref = `/trip/${tripId}/swipe`;
+
+  function generate() {
+    startPlanning(async () => {
+      // Redirects to the itinerary on success.
+      const r = await generateItineraryAction(tripId);
+      if (!r.ok) toast.error(r.error);
+    });
+  }
 
   function change(entry: DeckEntry, decision: SwipeDecision) {
     startTransition(async () => {
@@ -108,8 +118,11 @@ export function Shortlist({ tripId, entries }: { tripId: string; entries: DeckEn
       </ul>
 
       <div className="mt-auto flex flex-col gap-2 pt-2 sm:flex-row-reverse sm:items-center">
-        <Button size="lg" className="h-11 sm:flex-1" disabled aria-describedby="itinerary-soon">
-          Generate itinerary
+        <Button size="lg" className="h-11 sm:flex-1" disabled={planning} onClick={generate}>
+          {planning && (
+            <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />
+          )}
+          {planning ? "Planning your trip…" : "Generate itinerary"}
         </Button>
         <Button variant="outline" size="lg" className="h-11" asChild>
           <Link href={swipeHref}>
@@ -118,8 +131,10 @@ export function Shortlist({ tripId, entries }: { tripId: string; entries: DeckEn
           </Link>
         </Button>
       </div>
-      <p id="itinerary-soon" className="text-center text-xs text-muted-foreground">
-        Itinerary planning is coming soon.
+      <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+        {planning
+          ? "The AI is arranging your days; this can take a couple of minutes."
+          : "The AI groups nearby places into days; you can fine-tune the plan afterwards."}
       </p>
     </div>
   );

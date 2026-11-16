@@ -30,9 +30,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-dvh flex-col bg-background text-foreground">
+      <body className="group/body flex min-h-dvh flex-col bg-background text-foreground">
         <header className="border-b pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex h-12 w-full max-w-3xl items-center px-4">
+          <div className="mx-auto flex h-12 w-full max-w-3xl items-center px-4 group-has-data-wide/body:max-w-6xl">
             <Link
               href="/"
               className="flex items-center gap-2 rounded-md font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -42,7 +42,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
           </div>
         </header>
-        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/* Pages that render a [data-wide] element (the itinerary: list + map) get a wider column. */}
+        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] has-data-wide:max-w-6xl">
           {children}
         </main>
         <Toaster position="top-center" />

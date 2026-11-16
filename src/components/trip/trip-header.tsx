@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { cn } from "cn";
 import { PACE_LABELS, type Pace, type TripStatus } from "@/lib/trip";
 
-type Step = "swipe" | "review";
+type Step = "swipe" | "review" | "itinerary";
 
 /** Trip summary + Setup → Swipe → Review → Itinerary stepper. */
 export function TripHeader({
@@ -23,15 +23,19 @@ export function TripHeader({
 }) {
   const steps: { key: string; label: string; href?: string; done: boolean }[] = [
     { key: "setup", label: "Setup", done: true },
-    { key: "swipe", label: "Swipe", href: `/trip/${tripId}/swipe`, done: current === "review" },
+    { key: "swipe", label: "Swipe", href: `/trip/${tripId}/swipe`, done: current !== "swipe" },
     {
       key: "review",
       label: "Review",
       href: status === "swiping" ? undefined : `/trip/${tripId}/review`,
+      done: current === "itinerary",
+    },
+    {
+      key: "itinerary",
+      label: "Itinerary",
+      href: status === "itinerary" ? `/trip/${tripId}/itinerary` : undefined,
       done: false,
     },
-    // Itinerary (M3) is not available yet.
-    { key: "itinerary", label: "Itinerary", done: false },
   ];
 
   return (
