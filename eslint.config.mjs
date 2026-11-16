@@ -17,6 +17,13 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
   ]),
+  {
+    // The LangSmith SDK is used here only. Its deprecated methods call API endpoints that stop
+    // working (e.g. listRuns → v1 runs/query, removed after 2027-01-31): use the replacements.
+    files: ["scripts/**/*.ts", "evals/**/*.ts"],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: { "@typescript-eslint/no-deprecated": "error" },
+  },
 ]);
 
 export default eslintConfig;
