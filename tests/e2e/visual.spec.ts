@@ -8,6 +8,7 @@ import {
   planRomeTrip,
   serveBlankTiles,
 } from "./helpers";
+import { BUSY_URL } from "./servers";
 
 /**
  * Screenshot tests: each key screen is compared with a reference image (mobile and desktop).
@@ -115,4 +116,25 @@ test("chat conversation", async ({ page, isMobile }) => {
   await chat(page, "Add the Colosseum", "Added Colosseum to the shortlist.");
   await expect(page.getByText("1 in shortlist")).toBeVisible();
   await snap(page, "chat-conversation");
+});
+
+test.describe("AI is busy", () => {
+  test.use({ baseURL: BUSY_URL });
+
+  test("banner on the setup page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("status").filter({ hasText: "AI is busy." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start swiping" })).toBeVisible();
+    await snap(page, "ai-busy-setup");
+  });
+
+  test("a new city waits for the AI", async ({ page }) => {
+    await page.goto("/");
+    await hydrated(page.getByRole("combobox", { name: "City" }));
+    await page.getByRole("combobox", { name: "City" }).fill("Paris");
+    await page.getByRole("option", { name: /Paris, Ile-de-France, France/ }).click();
+    await page.getByRole("button", { name: "Start swiping" }).click();
+    await expect(page.getByRole("heading", { name: "AI is busy" })).toBeVisible();
+    await snap(page, "ai-busy-swipe");
+  });
 });
