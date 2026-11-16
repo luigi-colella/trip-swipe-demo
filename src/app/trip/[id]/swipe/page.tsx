@@ -1,11 +1,14 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SwipeDeck } from "@/components/swipe/swipe-deck";
+import { AiBusyState } from "@/components/trip/error-state";
 import { DeckSkeleton, TripHeaderSkeleton } from "@/components/trip/skeletons";
 import { TripHeader } from "@/components/trip/trip-header";
 import { deckVersion } from "@/lib/deck";
+import { aiBusyText, isAiBusyError } from "@/server/ai/budget";
+import { llmBudget } from "@/server/ai/runtime";
 import { db } from "@/server/db/client";
-import { findPlacesForTrip } from "@/server/places/discover";
+import { findPlacesForTrip, type Place } from "@/server/places/discover";
 import { discoveryDeps } from "@/server/places/deps";
 import { loadTripOr404 } from "@/server/trips/load";
 import { buildDeck, getSwipeHistory, type TripWithCity } from "@/server/trips/trips";
@@ -52,7 +55,13 @@ async function SwipeContent({ id }: { id: string }) {
 
 async function Deck({ found: { trip, city } }: { found: TripWithCity }) {
   // Cache-first: one LLM call only the first time anyone opens this city.
-  const pool = await findPlacesForTrip(city, trip.interests, discoveryDeps);
+  let pool: Place[];
+  try {
+    pool = await findPlacesForTrip(city, trip.interests, discoveryDeps);
+  } catch (err) {
+    if (isAiBusyError(err)) return <AiBusyState message={aiBusyText(llmBudget)} />;
+    throw err;
+  }
   const { deck, history } = buildDeck(pool, getSwipeHistory(db, trip.id), trip.interests);
   return (
     <SwipeDeck

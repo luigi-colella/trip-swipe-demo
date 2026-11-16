@@ -270,6 +270,38 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("button", { name: "Find more places" })).toBeTruthy();
   });
 
+  it("renders replies as sanitized markdown and the user's words as plain text", async () => {
+    vi.mocked(loadChatHistoryAction).mockResolvedValueOnce([
+      history("user", "**not bold** <b>me</b>"),
+      history(
+        "assistant",
+        [
+          "Day 1 has **three** stops:",
+          "",
+          "- [Colosseum](https://en.wikipedia.org/wiki/Colosseum)",
+          "- [Prize](https://evil.example/win) or [Nothing]()",
+          "",
+          "<img src=x onerror=alert(1)>![tracker](https://evil.example/pixel.png)",
+          "# Heading",
+        ].join("\n"),
+      ),
+    ]);
+    render(<ChatPanel tripId={TRIP_ID} />);
+    expect(await screen.findByText("**not bold** <b>me</b>")).toBeTruthy();
+    expect(screen.getByText("three").tagName).toBe("STRONG");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    const link = screen.getByRole("link", { name: "Colosseum" });
+    expect(link.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Colosseum");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    // Links elsewhere become plain text; HTML, images and headings are not rendered.
+    expect(screen.queryByRole("link", { name: "Prize" })).toBeNull();
+    expect(screen.getByText("Prize").tagName).toBe("SPAN");
+    expect(screen.getByText("Nothing").tagName).toBe("SPAN");
+    expect(document.querySelector("img")).toBeNull();
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByText("Heading")).toBeTruthy();
+  });
+
   it("ignores a history that arrives after the panel closed", async () => {
     let resolve!: (messages: ChatMessage[]) => void;
     vi.mocked(loadChatHistoryAction).mockReturnValueOnce(new Promise((r) => (resolve = r)));

@@ -11,6 +11,9 @@ import ReviewError from "@/app/trip/[id]/review/error";
 import ReviewPage from "@/app/trip/[id]/review/page";
 import SwipeError from "@/app/trip/[id]/swipe/error";
 import SwipePage from "@/app/trip/[id]/swipe/page";
+import { AiBusyBanner } from "@/components/ai-busy-banner";
+import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
+import { llmBudget } from "@/server/ai/runtime";
 import { db, sqlite } from "@/server/db/client";
 import { places } from "@/server/db/schema";
 import { saveItinerary } from "@/server/itinerary/itineraries";
@@ -27,8 +30,10 @@ vi.mock("@/server/db/client", async () => {
   t.cleanup = created.cleanup;
   return { db: created.db, sqlite: created.sqlite, connection: created };
 });
+const router = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => router,
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);
   },
@@ -48,17 +53,20 @@ vi.mock("next/font/google", () => ({
 let trip: Trip;
 let placeIds: string[];
 
+const ROME = {
+  osmRef: "R41485",
+  name: "Rome",
+  state: "Lazio",
+  country: "Italy",
+  countryCode: "IT",
+  lat: 41.8933,
+  lon: 12.4829,
+};
+
 beforeEach(() => {
   resetDatabase(sqlite);
-  const rome = upsertCity(db, {
-    osmRef: "R41485",
-    name: "Rome",
-    state: "Lazio",
-    country: "Italy",
-    countryCode: "IT",
-    lat: 41.8933,
-    lon: 12.4829,
-  });
+  router.refresh.mockClear();
+  const rome = upsertCity(db, ROME);
   placeIds = (
     [
       ["Colosseum", 41.8902, 12.4922],
@@ -167,6 +175,34 @@ describe("/trip/[id]/swipe", () => {
     const stack = screen.getByRole("group", { name: "Places to swipe" });
     expect(within(stack).getByRole("heading", { name: "Pantheon" })).toBeTruthy();
     expect(screen.getByText("1 in shortlist")).toBeTruthy();
+  });
+
+  it("says the AI is busy when a new city cannot be discovered, with a retry", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const atlantis = upsertCity(db, { ...ROME, osmRef: "R1", name: "Atlantis", state: null });
+    const id = createTrip(db, { cityId: atlantis.id, days: 1, pace: "relaxed", interests: [] }).id;
+    llmBudget.markExhausted();
+    await page(SwipePage, id);
+    expect(screen.getByRole("heading", { name: "AI is busy" })).toBeTruthy();
+    expect(screen.getByText(AI_PAUSED_MESSAGE)).toBeTruthy();
+    screen.getByRole("button", { name: "Try again" }).click();
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("lets other discovery failures reach the error boundary", async () => {
+    const atlantis = upsertCity(db, { ...ROME, osmRef: "R1", name: "Atlantis", state: null });
+    const id = createTrip(db, { cityId: atlantis.id, days: 1, pace: "relaxed", interests: [] }).id;
+    await expect(page(SwipePage, id)).rejects.toThrow(/No verifiable attractions/);
+  });
+});
+
+describe("AiBusyBanner", () => {
+  it("shows only while the daily LLM budget is used up", async () => {
+    const { container } = render(await resolveServerTree(<AiBusyBanner />));
+    expect(container.innerHTML).toBe("");
+    llmBudget.markExhausted();
+    render(await resolveServerTree(<AiBusyBanner />));
+    expect(screen.getByRole("status").textContent).toBe(`AI is busy. ${AI_PAUSED_MESSAGE}`);
   });
 });
 

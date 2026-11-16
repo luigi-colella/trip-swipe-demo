@@ -1,6 +1,7 @@
 /**
- * Offline fixtures for the E2E run: a cached Photon answer for "rome" and a ready Rome place
- * pool, so the production server never calls Photon, Wikipedia or an LLM during the tests.
+ * Offline fixtures for the E2E run: cached Photon answers for "rome" and "paris" and a ready
+ * Rome place pool (Paris has none), so the production server never calls Photon, Wikipedia or
+ * an LLM during the tests.
  * Idempotent; refreshes timestamps so nothing is ever considered stale.
  * Usage (from playwright.config.ts): node --import tsx tests/e2e/seed.ts
  */
@@ -38,6 +39,23 @@ export const PHOTON_ROME = {
   ],
 };
 
+/** A city without a place pool: opening it needs discovery (the AI-is-busy E2E server). */
+export const PHOTON_PARIS = {
+  features: [
+    {
+      geometry: { coordinates: [2.3522, 48.8566] },
+      properties: {
+        osm_type: "R",
+        osm_id: 7444,
+        name: "Paris",
+        state: "Ile-de-France",
+        country: "France",
+        countrycode: "FR",
+      },
+    },
+  ],
+};
+
 /**
  * [name, category, tags, visit minutes, popularity, lat, lon]; real coordinates so that the
  * itinerary clusters, legs and map are realistic. No photos (the browser stays offline too).
@@ -63,6 +81,7 @@ function main() {
   const now = new Date();
 
   writeHttpCache(db, "photon:rome", PHOTON_ROME, 365 * DAY_MS, now);
+  writeHttpCache(db, "photon:paris", PHOTON_PARIS, 365 * DAY_MS, now);
   const rome = upsertCity(db, parsePhotonResponse(PHOTON_ROME)[0]);
 
   for (const [name, category, tags, visitMinutes, popularity, lat, lon] of ROME_PLACES) {

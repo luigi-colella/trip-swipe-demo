@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { MAX_CHAT_INPUT, tripUpdatePath, type ChatMessage, type TripUpdate } from "@/lib/chat";
 import { loadChatHistoryAction } from "@/server/actions/chat";
 import { getChatSession, loadHistory, onTripUpdate } from "./chat-session";
+import { ChatMarkdown } from "./chat-markdown";
 import { ChatSkeleton } from "./chat-skeleton";
 
 /**
@@ -154,7 +155,10 @@ export default function ChatPanel({ tripId }: { tripId: string | null }) {
           )}
         </div>
         <p className="flex justify-between gap-2 text-xs text-muted-foreground">
-          <span>AI replies can be wrong.</span>
+          <span>
+            AI-generated replies can be wrong. Free AI models may use chats for training: don&apos;t
+            share personal data.
+          </span>
           {input.length > MAX_CHAT_INPUT - 100 && (
             <span>
               {input.length}/{MAX_CHAT_INPUT}
@@ -172,16 +176,18 @@ function ChatBubble({ message }: { message: ChatMessage }) {
     <div className={cn("flex flex-col gap-1", user ? "items-end" : "items-start")}>
       {message.parts.map((part, i) => {
         if (part.type === "text") {
-          return (
+          // The user's own words stay plain text; assistant replies are sanitized markdown.
+          return user ? (
             <p
               key={i}
-              className={cn(
-                "max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
-                user ? "bg-foreground text-background" : "bg-muted",
-              )}
+              className="max-w-[85%] rounded-2xl bg-foreground px-3 py-2 text-sm whitespace-pre-wrap text-background"
             >
               {part.text}
             </p>
+          ) : (
+            <div key={i} className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm">
+              <ChatMarkdown text={part.text} />
+            </div>
           );
         }
         if (part.type === "dynamic-tool") {

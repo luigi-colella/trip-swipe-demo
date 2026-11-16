@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Plane } from "lucide-react";
+import { AiBusyBanner } from "@/components/ai-busy-banner";
 import { ChatDock, ChatDockForRoute } from "@/components/chat/chat-dock";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -45,6 +46,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
           </div>
         </header>
+        {/* Read at request time: the daily LLM budget changes during the day. */}
+        <Suspense fallback={null}>
+          <AiBusyBanner />
+        </Suspense>
         {/* Pages that render a [data-wide] element (the itinerary: list + map) get a wider column. */}
         {/* Below lg the bottom padding keeps content clear of the floating chat button. */}
         <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] has-data-wide:max-w-6xl lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
