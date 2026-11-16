@@ -71,6 +71,22 @@ npm run db:seed -- --cities Rome,Florence  # a subset (names as listed in script
   invalidates `llm_cache`.
 - **Start over:** delete `data/app.db*`, then `npm run db:migrate && npm run db:seed`.
 
+## Tracing with LangSmith (optional)
+
+Every LLM call (e.g. `discover_places`, tagged `workflow-a`) can be traced to
+[LangSmith](https://smith.langchain.com) on the free Developer plan. LangChain reads the
+`LANGSMITH_*` variables by itself; the app only validates them at startup.
+
+1. In LangSmith, set up tracing for an agent and copy the values it shows into `.env.local`:
+   `LANGSMITH_API_KEY`, `LANGSMITH_AGENT_ID`, `LANGSMITH_AGENT_ENVIRONMENT` and, for EU
+   workspaces, `LANGSMITH_ENDPOINT`.
+2. Set `LANGSMITH_TRACING=true`. Do not also set `LANGSMITH_PROJECT`: the SDK traces either to
+   an agent or to a project, and stops tracing if both are set (startup fails with a clear error).
+3. Run anything that calls the model in `LLM_MODE=live`, e.g. `npm run db:seed -- --cities Rome`;
+   the run appears under the agent in LangSmith. Fake mode is traced too, at no quota cost.
+
+Traces contain prompts and model outputs (city names and attraction lists, no personal data).
+
 ## Scripts
 
 | Command                                            | Purpose                                                                                                         |

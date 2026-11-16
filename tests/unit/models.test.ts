@@ -23,6 +23,35 @@ describe("env", () => {
       "true",
     );
   });
+
+  it("accepts a LangSmith agent address only when complete", () => {
+    const env = parseEnv({
+      LANGSMITH_AGENT_ID: "travel-swipe",
+      LANGSMITH_AGENT_ENVIRONMENT: "Production",
+    });
+    expect(env.LANGSMITH_AGENT_ENVIRONMENT).toBe("production");
+    expect(() => parseEnv({ LANGSMITH_AGENT_ID: "travel-swipe" })).toThrow(
+      /LANGSMITH_AGENT_ENVIRONMENT/,
+    );
+    expect(() => parseEnv({ LANGSMITH_AGENT_ENVIRONMENT: "local" })).toThrow(/LANGSMITH_AGENT_ID/);
+    expect(() => parseEnv({ LANGSMITH_AGENT_ID: "Travel Swipe" })).toThrow(/LANGSMITH_AGENT_ID/);
+  });
+
+  it("treats empty variables as unset", () => {
+    const env = parseEnv({ LANGSMITH_ENDPOINT: "", LANGSMITH_AGENT_ID: "", DATABASE_PATH: "" });
+    expect(env.LANGSMITH_ENDPOINT).toBeUndefined();
+    expect(env.DATABASE_PATH).toBe("data/app.db");
+  });
+
+  it("rejects a LangSmith project together with an agent address", () => {
+    expect(() =>
+      parseEnv({
+        LANGSMITH_AGENT_ID: "travel-swipe",
+        LANGSMITH_AGENT_ENVIRONMENT: "local",
+        LANGSMITH_PROJECT: "travel-swipe",
+      }),
+    ).toThrow(/LANGSMITH_PROJECT/);
+  });
 });
 
 describe("model layer", () => {
