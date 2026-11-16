@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/coverage-hook.mjs\"",
+            "timeout": 300,
+            "statusMessage": "Checking tests and 100% coverage…"
+          }
+        ]
+      }
+    ]
+  }
+}
