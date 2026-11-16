@@ -1,0 +1,1 @@
+ALTER TABLE `trips` DROP COLUMN `tag_weights`;

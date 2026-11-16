@@ -67,10 +67,6 @@ export const trips = sqliteTable("trips", {
   days: integer("days").notNull(),
   pace: text("pace", { enum: PACES }).notNull(),
   interests: text("interests", { mode: "json" }).$type<string[]>().notNull().default([]),
-  tagWeights: text("tag_weights", { mode: "json" })
-    .$type<Record<string, number>>()
-    .notNull()
-    .default({}),
   status: text("status", { enum: TRIP_STATUSES }).notNull().default("swiping"),
   createdAt: createdAt(),
   updatedAt: integer("updated_at", { mode: "timestamp" })
