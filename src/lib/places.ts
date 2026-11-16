@@ -91,3 +91,45 @@ export function normalizeName(value: string): string {
 }
 
 export { slugify };
+
+/** What the client needs to render a place card (F2, F9); never the full database row. */
+export type PlaceCard = {
+  id: string;
+  name: string;
+  category: string;
+  tags: string[];
+  pitch: string;
+  visitMinutes: number;
+  popularity: number;
+  wikiUrl: string;
+  imageUrl: string | null;
+  imageAuthor: string | null;
+  imageLicense: string | null;
+  imageLicenseUrl: string | null;
+  imagePageUrl: string | null;
+};
+
+/** "1 h 30 min" style label for visit durations. */
+export function formatVisitTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** "historic-site" → "Historic site". */
+export function humanizeSlug(value: string): string {
+  const text = value.replace(/-/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Keeps http(s) URLs only (third-party data could carry `javascript:` or other schemes). */
+export function safeHttpUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
