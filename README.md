@@ -2,7 +2,24 @@
 
 Discover a city by swiping through its attractions, then let an AI agent turn your picks into a realistic day-by-day itinerary — and refine it by chatting.
 
-> Demo project: full-stack TypeScript web app with generative AI (LangChain.js + LangGraph.js). Work in progress.
+> Demo project: full-stack TypeScript web app with generative AI (LangChain.js + LangGraph.js),
+> running locally at $0 cost on free models.
+
+![Demo: pick Rome for 2 days, swipe through attractions, review the shortlist, generate the itinerary with its map, then move a stop to day 2 by chatting](docs/media/demo.gif)
+
+<sub>Recorded with the offline fake model (`npm run demo:record`). Photos from Wikimedia
+Commons (author and license on each card); map data © OpenStreetMap contributors.</sub>
+
+**Flow:** Setup → Swipe → Review → Itinerary, with a chat assistant on every step.
+
+- **Swipe** through ~30 attractions per city (drag, buttons or keyboard; ★ marks a must-see);
+  the deck re-ranks itself from what you like.
+- **Itinerary**: a LangGraph workflow turns the shortlist into feasible days with times,
+  walking/transit legs, a lunch break, a map and Google Maps directions.
+- **Chat**: a LangChain agent with tools edits the trip; the page updates as it answers.
+- **Deterministic first**: the model curates and explains; code computes distances,
+  schedules, validation, ranking and fallbacks, so the app keeps working when the free quota
+  runs out.
 
 ## Stack
 
@@ -21,6 +38,75 @@ cp .env.example .env.local   # LLM_MODE=fake works offline without API keys
 npm run db:migrate
 npm run db:seed              # optional, see "Seeding demo cities" below
 npm run dev                  # http://localhost:3000  (health check: /api/health)
+```
+
+In fake mode (the default in `.env.example`), try **Rome** or **Paris** from the setup page,
+or type "Plan a trip to Rome for 2 days" in the chat. For real models, set `LLM_MODE=live`
+and an `OPENROUTER_API_KEY` (free account at [openrouter.ai](https://openrouter.ai)) in
+`.env.local`, then seed a few cities (below). For a demo, prefer the production build:
+`npm run build && npm start`.
+
+## Architecture
+
+One local Next.js process serves the UI and the API, runs the AI workflows and keeps all
+state in a single SQLite file. Design decisions are recorded as [ADRs](docs/adr/README.md).
+
+```mermaid
+flowchart LR
+  browser["Browser<br/>React UI · useChat"]
+
+  subgraph next["Next.js (local Node.js process)"]
+    rsc["Server Components<br/>trip, deck, itinerary"]
+    actions["Server Actions<br/>swipe, review, plan, quick edits"]
+    chat["/api/chat<br/>streaming agent"]
+    cities["/api/cities<br/>autocomplete"]
+    subgraph ai["AI workflows (LangChain.js / LangGraph.js)"]
+      discovery["A · Place discovery<br/>cache-first + Wikipedia grounding"]
+      planner["B · Itinerary graph<br/>prepare → cluster → plan → validate"]
+      agent["C · Chat agent<br/>6 tools, guardrails, call limits"]
+    end
+    code["Deterministic code<br/>geo, ranking, validation, fallback"]
+  end
+
+  db[("SQLite data/app.db<br/>domain data · caches · rate limits<br/>budget · agent checkpoints")]
+  openrouter["OpenRouter<br/>free models"]
+  wiki["Photon · Wikipedia<br/>Wikimedia Commons"]
+  langsmith["LangSmith<br/>traces · evals (optional)"]
+
+  browser --> rsc & actions & chat & cities
+  actions --> discovery & planner & code
+  chat --> agent
+  agent --> discovery & planner & code
+  planner --> code
+  rsc & actions & agent & cities --> db
+  discovery & planner & agent -->|"getChatModel + daily budget"| openrouter
+  discovery & cities --> wiki
+  ai -.-> langsmith
+```
+
+A chat turn that edits the itinerary (the visual area refreshes as soon as the tool runs):
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant UI as Browser (useChat)
+  participant API as /api/chat
+  participant G as Guardrails
+  participant A as Agent (createAgent)
+  participant LLM as OpenRouter
+  participant DB as SQLite
+
+  User->>UI: "Move Pantheon to day 2"
+  UI->>API: message + trip id (bound server-side)
+  API->>G: length, rate limits, budget, injection heuristics, PII redaction
+  G-->>API: ok (or a standard refusal, no model call)
+  API->>A: run with trip snapshot + last 12 messages
+  A->>LLM: decide (tool call)
+  A->>DB: edit_itinerary → validated new version
+  API-->>UI: data part trip-updated → router.refresh()
+  A->>LLM: short reply
+  API-->>UI: streamed markdown reply
+  A->>DB: checkpoint (conversation)
 ```
 
 ## Seeding demo cities
@@ -152,6 +238,24 @@ Deterministic controls only, following the OWASP Top 10 for LLM Applications (20
 - **Lighthouse** (manual): with `npm run build && npm start` running, e.g.
   `npx lighthouse http://localhost:3000 --view` (mobile, simulated 4× CPU and slow 4G).
 
+## Recording the demo
+
+`npm run demo:record` (after `npm run build`) plays the flow shown at the top with Playwright
+and records it to `test-results/demo/record-demo/video.webm`. It runs a production server on
+port 3200 in `LLM_MODE=fake` against `data/demo.db`, a throwaway copy of `data/app.db`, so it
+costs no quota and leaves your trips alone. It needs Rome's real place pool (photos included):
+seed it once with `npm run db:seed -- --cities Rome` (1 live request). Photos and map tiles
+come from the network. The script is in `scripts/demo/`; it is not part of the test suites.
+
+To refresh `docs/media/demo.gif`, convert the video with any tool; with
+[ffmpeg](https://ffmpeg.org) (not needed by the project):
+
+```bash
+ffmpeg -i test-results/demo/record-demo/video.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 docs/media/demo.gif
+```
+
+These settings keep the GIF around 5 MB.
+
 ## Evals with LangSmith
 
 `npm run evals` scores the real workflows with deterministic evaluators (`evals/`), on a
@@ -200,3 +304,4 @@ Traces contain prompts and model outputs (city names and attraction lists, no pe
 | `npm run db:seed`                                  | Discovers and caches the places of ~25 demo cities; resumable, `-- --cities Rome,Paris` for a subset                                                |
 | `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)                                                  |
 | `npm run evals`                                    | LangSmith evals of the planner and the chat agent; `-- --suite trips`, `-- --dry-run` (see above)                                                   |
+| `npm run demo:record`                              | Records the demo video in fake mode on a copy of the local database (after `npm run build`; see "Recording the demo")                               |
