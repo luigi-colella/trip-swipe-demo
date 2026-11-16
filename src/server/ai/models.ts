@@ -1,3 +1,4 @@
+import type { BaseCache } from "@langchain/core/caches";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { ChatOpenAI } from "@langchain/openai";
@@ -7,19 +8,33 @@ export type ModelRole = "agent" | "planner" | "discovery";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
-/** Per-role generation settings: low temperature where we need reliable JSON. */
-const ROLE_SETTINGS: Record<ModelRole, { temperature: number; maxTokens: number }> = {
+/**
+ * Per-role generation settings: low temperature where we need reliable JSON.
+ * maxTokens also covers the hidden reasoning of the reasoning models openrouter/free often
+ * picks: 40 discovery candidates (~3.5k JSON tokens) overflowed 4096 on the first live run.
+ */
+export const ROLE_SETTINGS: Record<ModelRole, { temperature: number; maxTokens: number }> = {
   agent: { temperature: 0.4, maxTokens: 1024 },
   planner: { temperature: 0.2, maxTokens: 4096 },
-  discovery: { temperature: 0.3, maxTokens: 4096 },
+  discovery: { temperature: 0.3, maxTokens: 16_384 },
 };
+
+/** Roles whose answers depend only on the prompt, so an exact-match cache is safe. */
+const CACHEABLE_ROLES: ReadonlySet<ModelRole> = new Set(["discovery", "planner"]);
 
 type ModelEnv = Pick<Env, "LLM_MODE" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL">;
 
 /** OpenRouter free model through its OpenAI-compatible API (the only provider for now). */
-export function createOpenRouterModel(role: ModelRole, env: ModelEnv): BaseChatModel {
+export function createOpenRouterModel(
+  role: ModelRole,
+  env: ModelEnv,
+  cache?: BaseCache,
+): BaseChatModel {
   const s = ROLE_SETTINGS[role];
   return new ChatOpenAI({
+    // Must be a constructor field: ChatOpenAI rebuilds itself from its fields in
+    // withStructuredOutput / bindTools, so a cache assigned afterwards is silently dropped.
+    cache,
     apiKey: env.OPENROUTER_API_KEY,
     model: env.OPENROUTER_MODEL,
     temperature: s.temperature,
@@ -35,14 +50,24 @@ export function createFakeModel(responses: string[] = ["OK"]): BaseChatModel {
   return new FakeListChatModel({ responses });
 }
 
+export type ChatModelOptions = {
+  /** Scripted model for LLM_MODE=fake (defaults to a model that answers "OK"). */
+  fake?: () => BaseChatModel;
+  /** Exact-match cache (e.g. SqliteLlmCache); ignored for roles that must not be cached. */
+  cache?: BaseCache;
+};
+
 /**
  * Single entry point for chat models. Apply `bindTools` / `withStructuredOutput` on the result.
- * `fake` lets callers supply scripted responses for LLM_MODE=fake.
  */
 export function getChatModel(
   role: ModelRole,
   env: ModelEnv,
-  fake: () => BaseChatModel = () => createFakeModel(),
+  { fake = () => createFakeModel(), cache }: ChatModelOptions = {},
 ): BaseChatModel {
-  return env.LLM_MODE === "fake" ? fake() : createOpenRouterModel(role, env);
+  const roleCache = CACHEABLE_ROLES.has(role) ? cache : undefined;
+  if (env.LLM_MODE !== "fake") return createOpenRouterModel(role, env, roleCache);
+  const model = fake();
+  if (roleCache) model.cache = roleCache;
+  return model;
 }

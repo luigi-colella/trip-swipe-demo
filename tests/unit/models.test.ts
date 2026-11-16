@@ -1,7 +1,8 @@
 import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { getChatModel } from "@/server/ai/models";
+import { getChatModel, ROLE_SETTINGS } from "@/server/ai/models";
+import { INITIAL_CANDIDATES } from "@/server/places/discover";
 import { parseEnv } from "@/server/env-schema";
 
 const fakeEnv = parseEnv({ LLM_MODE: "fake" });
@@ -14,6 +15,13 @@ describe("env", () => {
 
   it("requires the OpenRouter key in live mode", () => {
     expect(() => parseEnv({ LLM_MODE: "live" })).toThrow(/OPENROUTER_API_KEY/);
+  });
+
+  it("requires the LangSmith key when tracing is on", () => {
+    expect(() => parseEnv({ LANGSMITH_TRACING: "true" })).toThrow(/LANGSMITH_API_KEY/);
+    expect(parseEnv({ LANGSMITH_TRACING: "true", LANGSMITH_API_KEY: "k" }).LANGSMITH_TRACING).toBe(
+      "true",
+    );
   });
 });
 
@@ -29,13 +37,18 @@ describe("model layer", () => {
     expect((model as unknown as { model: string }).model).toBe(liveEnv.OPENROUTER_MODEL);
   });
 
+  it("leaves discovery enough output tokens for a full batch plus reasoning", () => {
+    // Regression: 4096 tokens cut the first live 40-attraction answer (LengthFinishReasonError).
+    const model = getChatModel("discovery", liveEnv) as unknown as { maxTokens: number };
+    expect(model.maxTokens).toBe(ROLE_SETTINGS.discovery.maxTokens);
+    expect(model.maxTokens).toBeGreaterThanOrEqual(INITIAL_CANDIDATES * 200 + 4096);
+  });
+
   it("supports structured output with scripted fake responses", async () => {
     const Schema = z.object({ city: z.string() });
-    const model = getChatModel(
-      "discovery",
-      fakeEnv,
-      () => new FakeListChatModel({ responses: ['{"city":"Rome"}'] }),
-    );
+    const model = getChatModel("discovery", fakeEnv, {
+      fake: () => new FakeListChatModel({ responses: ['{"city":"Rome"}'] }),
+    });
     await expect(model.withStructuredOutput(Schema).invoke("which city?")).resolves.toEqual({
       city: "Rome",
     });
