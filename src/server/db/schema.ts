@@ -45,6 +45,9 @@ export const places = sqliteTable(
     imageUrl: text("image_url"),
     imageAuthor: text("image_author"),
     imageLicense: text("image_license"),
+    imageLicenseUrl: text("image_license_url"),
+    /** Wikimedia Commons file page: full attribution details for the photo. */
+    imagePageUrl: text("image_page_url"),
     lat: real("lat").notNull(),
     lon: real("lon").notNull(),
     visitMinutes: integer("visit_minutes").notNull(),
