@@ -1,11 +1,11 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   applyItineraryEdit,
-  ItineraryDataSchema,
   type ItineraryData,
   type ItineraryEdit,
   type ItineraryPlace,
 } from "@/lib/itinerary";
+import { ItineraryDataSchema } from "@/lib/itinerary-schemas";
 import type { AppDatabase } from "@/server/db/connection";
 import { itineraries, places, swipes, trips } from "@/server/db/schema";
 import { toPlaceCard, type TripWithCity } from "@/server/trips/trips";

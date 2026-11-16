@@ -1,7 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { TripIdSchema } from "@/lib/trip";
+import { TripIdSchema } from "@/lib/trip-schemas";
 import { db } from "@/server/db/client";
 import { getTrip, type TripWithCity } from "./trips";
 

@@ -69,6 +69,8 @@ export async function planRomeTrip(page: Page) {
   await page.getByRole("button", { name: "Generate itinerary" }).click();
   await expect(page).toHaveURL(/\/trip\/[0-9a-f-]{36}\/itinerary$/);
   await hydrated(page.getByRole("button", { name: "New plan" }));
+  // The stops' quick-action menus hydrate once their code has loaded (after the page).
+  await hydrated(page.getByRole("button", { name: /^Change / }).first());
 }
 
 /** F6: the chat is a pane on desktop and a bottom sheet (opened from a button) on mobile. */

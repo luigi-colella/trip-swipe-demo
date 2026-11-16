@@ -1,7 +1,7 @@
 "use server";
 
 import type { ChatMessage } from "@/lib/chat";
-import { TripIdSchema } from "@/lib/trip";
+import { TripIdSchema } from "@/lib/trip-schemas";
 import { db } from "@/server/db/client";
 import { chatDeps } from "@/server/agent/deps";
 import { loadChatHistory } from "@/server/agent/history";

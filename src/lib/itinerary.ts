@@ -1,7 +1,9 @@
-import { z } from "zod";
 import { estimateLeg, type LatLon, type Leg } from "./geo";
 import type { PlaceCard } from "./places";
-import { MAX_DAYS, PACE_HOURS, type Pace } from "./trip";
+import type { ItineraryData, ItineraryEdit } from "./itinerary-schemas";
+import { PACE_HOURS, type Pace } from "./trip";
+
+export type { ItineraryData, ItineraryEdit } from "./itinerary-schemas";
 
 /**
  * Itinerary model (F4) shared by the server and the client. A version stores only the
@@ -17,19 +19,6 @@ export const MAX_TITLE_LENGTH = 60;
 export const MAX_TIP_LENGTH = 140;
 export const MAX_REASON_LENGTH = 140;
 
-const StopSchema = z.object({
-  placeId: z.string(),
-  /** Short practical tip from the planner; null for deterministic plans. */
-  tip: z.string().nullable(),
-});
-
-export const ItineraryDataSchema = z.object({
-  days: z.array(z.object({ title: z.string(), stops: z.array(StopSchema) })),
-  excluded: z.array(z.object({ placeId: z.string(), reason: z.string() })),
-  /** "ai" when the LLM plan passed validation, "fallback" when code planned it alone. */
-  source: z.enum(ITINERARY_SOURCES),
-});
-export type ItineraryData = z.infer<typeof ItineraryDataSchema>;
 export type ItineraryDay = ItineraryData["days"][number];
 export type ItineraryStop = ItineraryDay["stops"][number];
 
@@ -132,23 +121,6 @@ export function formatClock(minutes: number): string {
 }
 
 // --- Quick actions -----------------------------------------------------------------------
-
-/** Deterministic edits (F4 quick actions; also the agent's edit_itinerary ops in M4). */
-export const ItineraryEditSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("remove"), placeId: z.uuid() }),
-  z.object({ type: z.literal("move"), placeId: z.uuid(), direction: z.enum(["up", "down"]) }),
-  z.object({
-    type: z.literal("change-day"),
-    placeId: z.uuid(),
-    /** Zero-based day index. */
-    day: z
-      .number()
-      .int()
-      .min(0)
-      .max(MAX_DAYS - 1),
-  }),
-]);
-export type ItineraryEdit = z.infer<typeof ItineraryEditSchema>;
 
 export const REMOVED_BY_USER_REASON = "Removed by you.";
 

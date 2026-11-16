@@ -1,26 +1,8 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  CalendarDays,
-  Footprints,
-  MoreVertical,
-  Star,
-  TrainFront,
-  Trash2,
-  Utensils,
-} from "lucide-react";
+import { lazy, Suspense } from "react";
+import { Footprints, Star, TrainFront, Utensils } from "lucide-react";
 import { cn } from "cn";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { formatDistance } from "@/lib/geo";
 import {
   formatClock,
@@ -30,6 +12,9 @@ import {
   type ItineraryPlace,
 } from "@/lib/itinerary";
 import { formatVisitTime, humanizeSlug } from "@/lib/places";
+import { StopMenuButton } from "./stop-menu-button";
+
+const StopActionsMenu = lazy(() => import("./stop-actions-menu"));
 
 /** F4 – One day's timeline: stops with times, legs between them, lunch, quick actions. */
 export function DayTimeline({
@@ -142,67 +127,19 @@ export function DayTimeline({
               </span>
               {tip && <p className="text-sm text-muted-foreground">{tip}</p>}
             </div>
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="-mr-1 size-9 shrink-0"
-                  disabled={disabled}
-                  aria-label={`Change ${place.name}`}
-                >
-                  <MoreVertical className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-auto min-w-48">
-                <DropdownMenuItem
-                  disabled={first}
-                  onSelect={() =>
-                    onEdit({ type: "move", placeId: place.id, direction: "up" }, place)
-                  }
-                >
-                  <ArrowUp aria-hidden /> Move earlier
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={last}
-                  onSelect={() =>
-                    onEdit({ type: "move", placeId: place.id, direction: "down" }, place)
-                  }
-                >
-                  <ArrowDown aria-hidden /> Move later
-                </DropdownMenuItem>
-                {days.length > 1 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Move to another day
-                    </DropdownMenuLabel>
-                    {days.map((title, i) =>
-                      i === dayIndex ? null : (
-                        <DropdownMenuItem
-                          key={i}
-                          onSelect={() =>
-                            onEdit({ type: "change-day", placeId: place.id, day: i }, place)
-                          }
-                        >
-                          <CalendarDays aria-hidden />
-                          <span className="truncate">
-                            Day {i + 1} · {title}
-                          </span>
-                        </DropdownMenuItem>
-                      ),
-                    )}
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => onEdit({ type: "remove", placeId: place.id }, place)}
-                >
-                  <Trash2 aria-hidden /> Remove from plan
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* The menu code (Radix + positioning) loads after the page: the server-rendered
+                button stays in place meanwhile, and a disabled copy stands in on the client. */}
+            <Suspense fallback={<StopMenuButton name={place.name} disabled />}>
+              <StopActionsMenu
+                place={place}
+                dayIndex={dayIndex}
+                days={days}
+                first={first}
+                last={last}
+                disabled={disabled}
+                onEdit={onEdit}
+              />
+            </Suspense>
           </li>
         );
       })}

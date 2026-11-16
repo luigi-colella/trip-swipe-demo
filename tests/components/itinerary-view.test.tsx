@@ -51,6 +51,18 @@ function stubMatchMedia() {
     })),
   );
 }
+/**
+ * A stop's quick-actions button once its menu code has loaded (until then a disabled copy of
+ * the button stands in for it).
+ */
+function menuButton(place: string) {
+  return waitFor(() => {
+    const button = screen.getByRole("button", { name: `Change ${place}` });
+    expect(button.getAttribute("aria-haspopup")).toBe("menu");
+    return button;
+  });
+}
+
 function resize(desktop: boolean) {
   media.desktop = desktop;
   act(() => media.listeners.forEach((fn) => fn()));
@@ -194,7 +206,7 @@ describe("ItineraryView Google Maps export (F7)", () => {
 
 describe("ItineraryView quick actions (F4)", () => {
   async function action(place: string, item: string | RegExp) {
-    await userEvent.click(screen.getByRole("button", { name: `Change ${place}` }));
+    await userEvent.click(await menuButton(place));
     await userEvent.click(await screen.findByRole("menuitem", { name: item }));
   }
   const names = () =>
@@ -204,7 +216,7 @@ describe("ItineraryView quick actions (F4)", () => {
 
   it("moves stops earlier and later, re-timing the day instantly", async () => {
     renderView();
-    await userEvent.click(screen.getByRole("button", { name: "Change Colosseum" }));
+    await userEvent.click(await menuButton("Colosseum"));
     expect(
       (await screen.findByRole("menuitem", { name: "Move earlier" })).getAttribute("aria-disabled"),
     ).toBe("true");
@@ -254,7 +266,7 @@ describe("ItineraryView quick actions (F4)", () => {
 
   it("hides 'Move to another day' on one-day trips", async () => {
     renderView({ data: { ...data, days: [data.days[0]] } });
-    await userEvent.click(screen.getByRole("button", { name: "Change Roman Forum" }));
+    await userEvent.click(await menuButton("Roman Forum"));
     await screen.findByRole("menuitem", { name: "Remove from plan" });
     expect(screen.queryByText("Move to another day")).toBeNull();
   });
@@ -400,7 +412,7 @@ describe("ItineraryView edge cases", () => {
       center: { lat: 41.9, lon: 12.5 },
     };
     const { rerender } = render(<ItineraryView {...props} data={data} />);
-    await userEvent.click(screen.getByRole("button", { name: "Change Colosseum" }));
+    await userEvent.click(await menuButton("Colosseum"));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from plan" }));
     // Meanwhile a refresh brings a version without the Colosseum (e.g. from another tab).
     const withoutColosseum = {

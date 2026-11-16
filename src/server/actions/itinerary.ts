@@ -2,8 +2,9 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { ItineraryEditSchema, type ItinerarySource } from "@/lib/itinerary";
-import { TripIdSchema } from "@/lib/trip";
+import type { ItinerarySource } from "@/lib/itinerary";
+import { ItineraryEditSchema } from "@/lib/itinerary-schemas";
+import { TripIdSchema } from "@/lib/trip-schemas";
 import { db } from "@/server/db/client";
 import { plannerDeps } from "@/server/itinerary/deps";
 import {

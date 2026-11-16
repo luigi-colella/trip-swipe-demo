@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { estimateLeg, formatDistance, MAX_WALK_KM, ROUTE_FACTOR } from "@/lib/geo";
+import { ItineraryDataSchema, ItineraryEditSchema } from "@/lib/itinerary-schemas";
 import {
   formatClock,
-  ItineraryDataSchema,
-  ItineraryEditSchema,
   paceMinutes,
   scheduleDay,
   scheduleItineraryDay,

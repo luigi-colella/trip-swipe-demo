@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { deckReducer, PINNED_CARDS, shortlistCount, type DeckState } from "@/lib/deck";
 import { formatVisitTime, humanizeSlug, safeHttpUrl, type PlaceCard } from "@/lib/places";
 import { computeTagWeights, rankPlaces, rerankDeck } from "@/lib/ranking";
-import { TripSetupSchema } from "@/lib/trip";
+import { isTripId } from "@/lib/trip";
+import { TripSetupSchema } from "@/lib/trip-schemas";
 
 const card = (id: string, category: string, tags: string[], popularity = 100): PlaceCard => ({
   id,
@@ -158,5 +159,15 @@ describe("card helpers", () => {
     expect(safeHttpUrl("javascript:alert(1)")).toBeNull();
     expect(safeHttpUrl("not a url")).toBeNull();
     expect(safeHttpUrl(null)).toBeNull();
+  });
+});
+
+describe("isTripId", () => {
+  it("accepts UUIDs only, without Zod (client bundles)", () => {
+    expect(isTripId("2af496a5-b56a-4289-8e9a-fd3dba40527c")).toBe(true);
+    expect(isTripId("2AF496A5-B56A-4289-8E9A-FD3DBA40527C")).toBe(true);
+    expect(isTripId("2af496a5-b56a-4289-8e9a-fd3dba40527")).toBe(false);
+    expect(isTripId("../2af496a5-b56a-4289-8e9a-fd3dba40527c")).toBe(false);
+    expect(isTripId(undefined)).toBe(false);
   });
 });

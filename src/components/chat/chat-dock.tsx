@@ -7,7 +7,7 @@ import { MessageCircle, PanelRightClose, X } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { useIsDesktop } from "@/components/use-is-desktop";
-import { TripIdSchema } from "@/lib/trip";
+import { isTripId } from "@/lib/trip";
 import { ChatSkeleton } from "./chat-skeleton";
 
 /** The conversation code (AI SDK client) loads only when a chat is actually shown. */
@@ -46,7 +46,7 @@ function ChatHeader({
 /** The chat bound to the trip in the URL (/trip/[id]/…), or to the home page. */
 export function ChatDockForRoute() {
   const params = useParams<{ id?: string }>();
-  return <ChatDock tripId={TripIdSchema.safeParse(params.id).success ? params.id! : null} />;
+  return <ChatDock tripId={isTripId(params.id) ? params.id : null} />;
 }
 
 /**
