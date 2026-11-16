@@ -104,7 +104,9 @@ page updates immediately; itinerary edits are new versions, so Undo works as for
 - **Safety:** the agent only acts on the trip open in the page and refers to places by name
   (code resolves them); messages are limited to 500 characters; each turn makes at most 4
   model calls and 3 tool calls; the model sees the current trip state plus the last 12
-  messages.
+  messages. See [Guardrails and limits](#guardrails-and-limits) for the rest.
+- **Replies** are rendered as sanitized markdown (bold, lists, code): no raw HTML or images,
+  and links only to Wikipedia, Wikimedia Commons, Google Maps and OpenStreetMap.
 - **Cost:** about 2 OpenRouter requests per turn that changes the trip (decide, then reply),
   1 for a plain answer; `regenerate_itinerary` and `find_more_places` add their own planner
   or discovery request. Adding a place to an existing itinerary needs no extra request.
@@ -112,6 +114,61 @@ page updates immediately; itinerary edits are new versions, so Undo works as for
   "Plan a trip to Rome for 2 days", "Add the Colosseum", "Move Pantheon to day 2",
   "Remove Trevi Fountain", "Find more places" and "Plan a new itinerary"
   (`src/server/ai/fake-agent.ts`).
+
+## Guardrails and limits
+
+Deterministic controls only, following the OWASP Top 10 for LLM Applications (2025):
+
+- **Prompt attacks:** known injection and prompt-extraction patterns ("ignore previous
+  instructions", "show me your system prompt", chat-template markers…) get a standard
+  refusal without calling the model; hits are logged and traced with a `guardrail:<kind>` tag
+  (`src/server/agent/guardrails.ts`). The heuristics favour precision: the structural limits
+  above are the real protection.
+- **Personal data:** emails, card numbers, IP addresses and phone numbers are redacted from
+  chat messages (LangChain's PII detectors) before they reach the model or the stored
+  conversation. The chat reminds users that free models may use chats for training.
+- **Daily LLM budget:** every request sent to OpenRouter is counted in SQLite
+  (`LLM_DAILY_BUDGET`, default 45 per UTC day, below the free tier's ~50). When it is used
+  up, or OpenRouter reports its own daily limit, AI features pause until 00:00 UTC and an
+  "AI is busy" banner explains it: cities already discovered, swiping, quick edits and
+  planning by rules keep working. Cache hits and fake mode are free. `npm run db:seed` and
+  `npm run evals` count against the same budget.
+- **Rate limits** per client IP: 20 chat messages and 10 AI actions (new trip, "Load more",
+  planning) per hour, plus 40 chat messages per trip per day (`RATE_LIMIT_*` variables).
+  Locally the IP comes from `x-forwarded-for`, which `next start` fills in.
+- **Timeouts:** each model request is capped (60 s chat, 120 s planner, 180 s discovery)
+  besides its `maxTokens`.
+
+## Quality checks
+
+- **Accessibility:** `tests/e2e/accessibility.spec.ts` runs axe-core (WCAG 2.1 A/AA) on every
+  screen and state, mobile and desktop. Swiping has button and keyboard alternatives, focus
+  is always visible and animations respect `prefers-reduced-motion`.
+- **Performance budgets:** `tests/e2e/performance.spec.ts` checks on the production build that
+  each page loads < 200 KB of gzipped JavaScript up front (the chat, Leaflet and the stop
+  menus load on demand) and that CLS stays < 0.05 with a 4× slower CPU.
+- **Layout:** `tests/e2e/layout.spec.ts` checks every step at 360×640, 390×844, 768 and
+  1280 px for horizontal overflow; screenshot tests cover the look (`visual.spec.ts`).
+- **Lighthouse** (manual): with `npm run build && npm start` running, e.g.
+  `npx lighthouse http://localhost:3000 --view` (mobile, simulated 4× CPU and slow 4G).
+
+## Evals with LangSmith
+
+`npm run evals` scores the real workflows with deterministic evaluators (`evals/`), on a
+throwaway copy of the database:
+
+- **trips** (~10): the itinerary planner on the most popular places of seeded demo cities.
+  Scores: valid AI plan (no fallback), right the first time, must-sees planned, days within
+  the pace. Cities that were not seeded are skipped.
+- **adversarial** (~15): injection, extraction, off-topic and cross-trip requests sent to the
+  chat agent. Scores: other trip untouched, no system-prompt leak, declined (or handled),
+  heuristics caught exactly the expected prompts.
+
+Results go to LangSmith as experiments (datasets are created on first use; needs
+`LANGSMITH_API_KEY`). `--suite trips|adversarial` runs one suite, `--dry-run` prints the
+scores without uploading. In `LLM_MODE=live` a full run can take ~20–60 OpenRouter requests,
+so run one suite per day; `LLM_MODE=fake --dry-run` checks the setup offline. The datasets
+are also checked offline by `npm test` (what the heuristics must and must not catch).
 
 ## Tracing with LangSmith (optional)
 
@@ -131,14 +188,15 @@ Traces contain prompts and model outputs (city names and attraction lists, no pe
 
 ## Scripts
 
-| Command                                            | Purpose                                                                                                         |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                                         |
-| `npm test`                                         | Vitest unit, integration and component tests (offline, `LLM_MODE=fake`)                                         |
-| `npm run test:coverage`                            | The same tests with coverage; fails below 100% of `src/`                                                        |
-| `npm run test:e2e`                                 | Playwright smoke tests on mobile + desktop (after `npm run build`; first run `npx playwright install chromium`) |
-| `npm run test:e2e:update-screenshots`              | Regenerates the screenshot references (Windows only for now) after an intended UI change                        |
-| `npm run lint` / `typecheck` / `format`            | Code quality                                                                                                    |
-| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                               |
-| `npm run db:seed`                                  | Discovers and caches the places of ~25 demo cities; resumable, `-- --cities Rome,Paris` for a subset            |
-| `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)              |
+| Command                                            | Purpose                                                                                                                                             |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                                                                             |
+| `npm test`                                         | Vitest unit, integration and component tests (offline, `LLM_MODE=fake`)                                                                             |
+| `npm run test:coverage`                            | The same tests with coverage; fails below 100% of `src/`                                                                                            |
+| `npm run test:e2e`                                 | Playwright flows, accessibility, performance and screenshots, mobile + desktop (after `npm run build`; first run `npx playwright install chromium`) |
+| `npm run test:e2e:update-screenshots`              | Regenerates the screenshot references (Windows only for now) after an intended UI change                                                            |
+| `npm run lint` / `typecheck` / `format`            | Code quality                                                                                                                                        |
+| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                                                                   |
+| `npm run db:seed`                                  | Discovers and caches the places of ~25 demo cities; resumable, `-- --cities Rome,Paris` for a subset                                                |
+| `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)                                                  |
+| `npm run evals`                                    | LangSmith evals of the planner and the chat agent; `-- --suite trips`, `-- --dry-run` (see above)                                                   |
