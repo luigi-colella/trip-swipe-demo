@@ -90,6 +90,29 @@ provider is unavailable, the deterministic draft is used and labelled "Planned b
 - The map uses OpenStreetMap tiles (free, attribution shown, light use only); each day can be
   opened in Google Maps as walking directions.
 
+## Chat assistant
+
+The trip assistant is on every page: a pane on the right on desktop (it can be hidden), a
+bottom sheet opened from the round button on mobile. It is a LangChain agent
+(`src/server/agent/agent.ts`) with six tools: `set_trip`, `find_more_places`, `add_place`,
+`remove_place`, `edit_itinerary` and `regenerate_itinerary`. Tools change the trip and the
+page updates immediately; itinerary edits are new versions, so Undo works as for quick actions.
+
+- **Conversation:** stored per trip in SQLite by the LangGraph checkpointer and shown again
+  when the trip is reopened. The home-page chat stores nothing until it creates a trip; that
+  conversation then continues in the new trip.
+- **Safety:** the agent only acts on the trip open in the page and refers to places by name
+  (code resolves them); messages are limited to 500 characters; each turn makes at most 4
+  model calls and 3 tool calls; the model sees the current trip state plus the last 12
+  messages.
+- **Cost:** about 2 OpenRouter requests per turn that changes the trip (decide, then reply),
+  1 for a plain answer; `regenerate_itinerary` and `find_more_places` add their own planner
+  or discovery request. Adding a place to an existing itinerary needs no extra request.
+- **Offline:** with `LLM_MODE=fake` a scripted model understands simple commands such as
+  "Plan a trip to Rome for 2 days", "Add the Colosseum", "Move Pantheon to day 2",
+  "Remove Trevi Fountain", "Find more places" and "Plan a new itinerary"
+  (`src/server/ai/fake-agent.ts`).
+
 ## Tracing with LangSmith (optional)
 
 Every LLM call (e.g. `discover_places`, tagged `workflow-a`, or the `itinerary_planner` graph, tagged `workflow-b`) can be traced to
