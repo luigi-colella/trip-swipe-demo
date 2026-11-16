@@ -8,15 +8,15 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+// Relative import: drizzle-kit loads this file without the "@/" path alias.
+import { PACES, SWIPE_DECISIONS, TRIP_STATUSES } from "../../lib/trip";
+
+export { PACES, SWIPE_DECISIONS, TRIP_STATUSES };
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`);
-
-export const PACES = ["relaxed", "balanced", "intense"] as const;
-export const SWIPE_DECISIONS = ["like", "skip", "must"] as const;
-export const TRIP_STATUSES = ["swiping", "review", "itinerary"] as const;
 
 export const cities = sqliteTable("cities", {
   id: text("id").primaryKey(),
