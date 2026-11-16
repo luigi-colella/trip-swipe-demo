@@ -290,6 +290,37 @@ Every LLM call (e.g. `discover_places`, tagged `workflow-a`, or the `itinerary_p
 
 Traces contain prompts and model outputs (city names and attraction lists, no personal data).
 
+### Screenshots of LangSmith
+
+A chat turn: the agent calls `add_place` and the trip changes before it replies.
+
+![LangSmith trace of a chat turn: chat_agent runs a model request, the add_place tool, then a second model request for the reply](docs/media/langsmith-chat.png)
+
+The itinerary planner graph: deterministic `prepare`, `cluster` and `validate` steps around a
+single model call, valid the first time (`attempts: 1`).
+
+![LangSmith trace of the itinerary_planner graph: prepare, cluster, plan with one ChatOpenAI call, validate](docs/media/langsmith-planner.png)
+
+The adversarial eval experiment: 15 injection, extraction and off-topic prompts, each one
+declined or safely handled, with no leak and the other trip untouched.
+
+![LangSmith experiment of the adversarial suite: every case scores 1.00 on declined or handled, heuristics, no prompt leak and other trip untouched](docs/media/langsmith-evals.png)
+
+`npm run docs:langsmith` refreshes the LangSmith screenshots in `docs/media/`: the latest
+chat turn that calls `add_place`, the latest `itinerary_planner` graph and the latest
+adversarial eval experiment, found through the API (`LANGSMITH_API_KEY`, `LANGSMITH_AGENT_*`).
+
+- **Missing data:** when LangSmith has nothing to show for one of them, the script offers to
+  create it with the live model and asks every time, showing the cost (chat turn ~2
+  requests, plan 1–3, adversarial evals ~15–30) and the requests already used today. Run it
+  in an interactive terminal; elsewhere it never spends quota. Needs Rome seeded.
+- **Sign-in:** the LangSmith web app needs a browser session, not the API key. The first
+  time, or when the saved session has expired, a Chromium window opens: sign in there (email
+  or GitHub; Google may refuse automated browsers) and the script continues by itself. The
+  session is kept in `data/langsmith-auth.json` (gitignored): treat it like a password.
+- The images leave out the sidebar (account and workspace names), product tips and account
+  notices, and mask email addresses; still check them before committing.
+
 ## Scripts
 
 | Command                                            | Purpose                                                                                                                                             |
@@ -305,3 +336,4 @@ Traces contain prompts and model outputs (city names and attraction lists, no pe
 | `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)                                                  |
 | `npm run evals`                                    | LangSmith evals of the planner and the chat agent; `-- --suite trips`, `-- --dry-run` (see above)                                                   |
 | `npm run demo:record`                              | Records the demo video in fake mode on a copy of the local database (after `npm run build`; see "Recording the demo")                               |
+| `npm run docs:langsmith`                           | Updates the LangSmith screenshots in `docs/media/` (see "Screenshots of LangSmith")                                                                 |

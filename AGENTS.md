@@ -28,6 +28,7 @@ npm run db:seed        # pre-compute demo city place pools (LLM_MODE=live, 1 LLM
 npm run spike:llm      # live model checks (needs OPENROUTER_API_KEY in .env.local)
 npm run evals          # LangSmith evals (live: spends daily LLM budget; --dry-run, --suite)
 npm run demo:record    # record the README demo video (fake LLM, copy of data/app.db; after build)
+npm run docs:langsmith # LangSmith screenshots for the README (asks before any live LLM request)
 ```
 
 Before declaring work done: `npm run lint && npm run typecheck && npm test` must pass.
