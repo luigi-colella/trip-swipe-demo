@@ -14,7 +14,7 @@ import { getChatModel, type ChatModelOptions } from "@/server/ai/models";
 import { DiscoveryOutputSchema, discoveryMessages } from "@/server/ai/prompts";
 import type { Env } from "@/server/env-schema";
 import { places } from "@/server/db/schema";
-import { haversineKm } from "@/server/itinerary/geo";
+import { haversineKm } from "@/lib/geo";
 import type { City } from "./cities";
 import { DAY_MS, type HttpDeps } from "./http-cache";
 import {

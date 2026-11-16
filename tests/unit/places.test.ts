@@ -7,7 +7,7 @@ import {
   truncateText,
 } from "@/lib/places";
 import { rankByInterests } from "@/lib/ranking";
-import { haversineKm } from "@/server/itinerary/geo";
+import { haversineKm } from "@/lib/geo";
 import { citySlug } from "@/server/places/cities";
 import { selectGroundedCandidates } from "@/server/places/discover";
 import { parsePhotonResponse } from "@/server/places/photon";

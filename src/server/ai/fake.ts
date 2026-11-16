@@ -1,4 +1,4 @@
-import type { DiscoveryOutput } from "./prompts";
+import type { DiscoveryOutput, PlannerOutput } from "./prompts";
 
 /**
  * Scripted responses for LLM_MODE=fake (tests, CI, offline UI work). Real Wikipedia titles,
@@ -219,4 +219,22 @@ export function fakeDiscoveryResponse(cityName: string, exclude: readonly string
     (x) => !skip.has(x.wikiTitle),
   );
   return JSON.stringify({ attractions } satisfies DiscoveryOutput);
+}
+
+/**
+ * Fake planner: accepts the deterministic draft as is (with its titles and reasons), so offline
+ * runs go through the same validate → save path as a live AI plan.
+ */
+export function fakePlannerResponse(draft: {
+  days: { title: string; ids: readonly string[] }[];
+  excluded: { id: string; reason: string }[];
+}): string {
+  const output: PlannerOutput = {
+    days: draft.days.map((d) => ({
+      title: d.title,
+      stops: d.ids.map((id, i) => ({ id, tip: i === 0 ? "Arrive early to enjoy it calmly." : "" })),
+    })),
+    excluded: draft.excluded,
+  };
+  return JSON.stringify(output);
 }

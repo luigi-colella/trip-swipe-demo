@@ -11,11 +11,12 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 /**
  * Per-role generation settings: low temperature where we need reliable JSON.
  * maxTokens also covers the hidden reasoning of the reasoning models openrouter/free often
- * picks: 40 discovery candidates (~3.5k JSON tokens) overflowed 4096 on the first live run.
+ * picks: 40 discovery candidates (~3.5k JSON tokens) overflowed 4096 on the first live run,
+ * so the planner (up to ~40 stops plus reasoning) gets the same headroom.
  */
 export const ROLE_SETTINGS: Record<ModelRole, { temperature: number; maxTokens: number }> = {
   agent: { temperature: 0.4, maxTokens: 1024 },
-  planner: { temperature: 0.2, maxTokens: 4096 },
+  planner: { temperature: 0.2, maxTokens: 8192 },
   discovery: { temperature: 0.3, maxTokens: 16_384 },
 };
 
