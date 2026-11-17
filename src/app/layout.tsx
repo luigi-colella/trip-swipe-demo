@@ -52,7 +52,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </Suspense>
         {/* Pages that render a [data-wide] element (the itinerary: list + map) get a wider column. */}
         {/* Below lg the bottom padding keeps content clear of the floating chat button. */}
-        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] has-data-wide:max-w-6xl lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/* overflow-x-clip: a swiped card flies past the edge without scrolling the page. */}
+        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-x-clip px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] has-data-wide:max-w-6xl lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
           {children}
         </main>
         {/* The trip ID comes from the URL, only known at request time. */}

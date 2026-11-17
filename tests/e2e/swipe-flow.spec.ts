@@ -30,6 +30,24 @@ test("setup requires a city from the suggestions", async ({ page }) => {
   await expect(page).toHaveURL("/");
 });
 
+test("a card flying out never scrolls the page sideways", async ({ page }) => {
+  // Regression: during the exit animation the page grew up to ~700 px wider and could scroll.
+  await createRomeTrip(page);
+  await page.getByRole("button", { name: "Like", exact: true }).click();
+  const offsets: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    offsets.push(
+      await page.evaluate(() => {
+        window.scrollTo(100, window.scrollY);
+        return window.scrollX;
+      }),
+    );
+    await page.waitForTimeout(40);
+  }
+  expect(offsets).toEqual(Array(8).fill(0));
+  await expect(page.getByText("Place 2 of 8")).toBeVisible();
+});
+
 test("swipe with buttons, keyboard and drag, undo, then review the shortlist", async ({ page }) => {
   const errors = collectErrors(page);
   await createRomeTrip(page);
