@@ -5,7 +5,7 @@
 
 ## Context
 
-TravelSwipe AI is a demo of a full-stack web app with generative AI. It serves at most ~5
+TripSwipe AI is a demo of a full-stack web app with generative AI. It serves at most ~5
 concurrent users, must cost $0, and should be easy to try: clone, `npm install`, run.
 
 ## Decision

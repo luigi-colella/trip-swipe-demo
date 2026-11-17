@@ -1,4 +1,4 @@
-# TravelSwipe AI
+# TripSwipe AI
 
 Discover a city by swiping through its attractions, then let an AI agent turn your picks into a realistic day-by-day itinerary — and refine it by chatting.
 

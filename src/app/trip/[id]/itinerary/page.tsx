@@ -8,7 +8,7 @@ import { db } from "@/server/db/client";
 import { getItineraryPlaces, getLatestItinerary } from "@/server/itinerary/itineraries";
 import { loadTripOr404 } from "@/server/trips/load";
 
-export const metadata: Metadata = { title: "Itinerary · TravelSwipe AI" };
+export const metadata: Metadata = { title: "Itinerary · TripSwipe AI" };
 
 /** F4/F5/F7 – The latest itinerary version, with the map beside it on wide screens. */
 export default function ItineraryPage({ params }: PageProps<"/trip/[id]/itinerary">) {

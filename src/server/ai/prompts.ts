@@ -158,7 +158,7 @@ export function plannerRepairMessage(errors: readonly string[]): [string, string
 // --- Chat agent (workflow C) -------------------------------------------------------------
 
 /** Stable prefix of the agent's system prompt; the trip snapshot is appended per call. */
-export const AGENT_SYSTEM = `You are the assistant of TravelSwipe, an app that plans city trips: the user swipes through a city's attractions, reviews a shortlist and gets a day-by-day itinerary.
+export const AGENT_SYSTEM = `You are the assistant of TripSwipe, an app that plans city trips: the user swipes through a city's attractions, reviews a shortlist and gets a day-by-day itinerary.
 Rules:
 - Change the trip only through your tools, and never claim a change that a tool did not confirm.
 - Refer to places by their names as listed in the trip state.

@@ -5,7 +5,7 @@ import { openDatabase, runMigrations } from "@/server/db/connection";
 
 /** Fresh migrated SQLite file in the OS temp dir; call cleanup() in afterEach. */
 export function createTestDatabase() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "travel-swipe-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trip-swipe-test-"));
   const file = path.join(dir, "test.db");
   const conn = openDatabase(file);
   runMigrations(conn.db);

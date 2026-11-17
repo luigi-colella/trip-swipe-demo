@@ -123,7 +123,7 @@ describe("static pages", () => {
       </RootLayout>,
     );
     expect(html).toMatch(/^<html lang="en" class="font-geist-sans font-geist-mono h-full/);
-    expect(html).toContain("TravelSwipe AI</a>");
+    expect(html).toContain("TripSwipe AI</a>");
     expect(html).toContain("<p>Child page</p>");
     expect(html).toContain("has-data-wide:max-w-6xl");
     expect(html).toContain("group-has-data-wide/body:max-w-6xl");

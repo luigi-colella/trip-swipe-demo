@@ -6,7 +6,7 @@ The full specification lives in `docs/PLAN.md`, a local planning document that i
 
 ## Project
 
-TravelSwipe AI: swipe through a city's attractions, get an AI-built itinerary, refine it by chat.
+TripSwipe AI: swipe through a city's attractions, get an AI-built itinerary, refine it by chat.
 Demo project; runs **locally only**. Stack: Next.js 16 (App Router) + TypeScript, Tailwind,
 LangChain.js v1 / LangGraph.js, SQLite via Drizzle + `better-sqlite3`, OpenRouter free models as
 the only LLM provider (for now).

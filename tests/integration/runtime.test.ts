@@ -20,15 +20,15 @@ vi.mock("next/server", async (importOriginal) => ({
   connection: async () => {},
 }));
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "travel-swipe-runtime-"));
-const globals = globalThis as { __travelSwipeDb?: { sqlite: { close(): void } } };
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trip-swipe-runtime-"));
+const globals = globalThis as { __tripSwipeDb?: { sqlite: { close(): void } } };
 
 beforeAll(() => {
   vi.stubEnv("DATABASE_PATH", path.join(dir, "app.db"));
 });
 afterAll(() => {
-  globals.__travelSwipeDb?.sqlite.close();
-  delete globals.__travelSwipeDb;
+  globals.__tripSwipeDb?.sqlite.close();
+  delete globals.__tripSwipeDb;
   vi.unstubAllEnvs();
   fs.rmSync(dir, { recursive: true, force: true });
 });

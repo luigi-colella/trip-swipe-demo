@@ -7,7 +7,7 @@ import { db } from "@/server/db/client";
 import { loadTripOr404 } from "@/server/trips/load";
 import { getShortlist } from "@/server/trips/trips";
 
-export const metadata: Metadata = { title: "Review · TravelSwipe AI" };
+export const metadata: Metadata = { title: "Review · TripSwipe AI" };
 
 /** F10 – Shortlist review between Swipe and Itinerary. */
 export default function ReviewPage({ params }: PageProps<"/trip/[id]/review">) {

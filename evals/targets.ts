@@ -33,7 +33,7 @@ export async function createEvalContext(
   env: Env,
   budget: LlmBudget,
 ): Promise<EvalContext> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "travel-swipe-evals-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trip-swipe-evals-"));
   const file = path.join(dir, "evals.db");
   await appSqlite.backup(file);
   const { db, sqlite } = openDatabase(file);

@@ -9,7 +9,7 @@ export type HttpDeps = {
 };
 
 /** Wikimedia and Photon ask clients to identify themselves; no personal contact data here. */
-export const USER_AGENT = "TravelSwipeAI/0.1 (local demo app)";
+export const USER_AGENT = "TripSwipeAI/0.1 (local demo app)";
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;

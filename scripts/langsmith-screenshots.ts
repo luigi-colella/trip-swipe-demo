@@ -120,7 +120,7 @@ async function main() {
       find: async () => {
         let latest: { url: string; start: number } | null = null;
         for await (const dataset of client.listDatasets({ datasetNameContains: "adversarial" })) {
-          if (!dataset.name.startsWith("travelswipe-adversarial-")) continue;
+          if (!dataset.name.startsWith("tripswipe-adversarial-")) continue;
           for await (const exp of client.listProjects({ referenceDatasetId: dataset.id })) {
             const start = new Date(exp.start_time).getTime();
             if (latest && latest.start >= start) continue;

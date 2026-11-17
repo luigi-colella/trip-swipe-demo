@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TravelSwipe AI",
+  title: "TripSwipe AI",
   description: "Swipe through a city's attractions and get an AI-built itinerary.",
 };
 
@@ -42,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               className="flex items-center gap-2 rounded-md font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Plane className="size-5 text-rose-500" aria-hidden />
-              TravelSwipe AI
+              TripSwipe AI
             </Link>
           </div>
         </header>

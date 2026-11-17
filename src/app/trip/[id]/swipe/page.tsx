@@ -13,7 +13,7 @@ import { discoveryDeps } from "@/server/places/deps";
 import { loadTripOr404 } from "@/server/trips/load";
 import { buildDeck, getSwipeHistory, type TripWithCity } from "@/server/trips/trips";
 
-export const metadata: Metadata = { title: "Swipe · TravelSwipe AI" };
+export const metadata: Metadata = { title: "Swipe · TripSwipe AI" };
 
 /** F2/F3: the header streams first; the deck may wait for place discovery on a new city. */
 export default function SwipePage({ params }: PageProps<"/trip/[id]/swipe">) {

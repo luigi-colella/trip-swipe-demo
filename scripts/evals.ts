@@ -117,10 +117,10 @@ async function runLocally(ctx: EvalContext, suite: Suite) {
 async function runOnLangSmith(ctx: EvalContext, suite: Suite, model: string) {
   const client = new Client();
   const hash = createHash("sha256").update(JSON.stringify(suite.cases)).digest("hex").slice(0, 8);
-  const datasetName = `travelswipe-${suite.name}-${hash}`;
+  const datasetName = `tripswipe-${suite.name}-${hash}`;
   if (!(await client.hasDataset({ datasetName }))) {
     const dataset = await client.createDataset(datasetName, {
-      description: `TravelSwipe ${suite.name} eval cases (evals/datasets.ts)`,
+      description: `TripSwipe ${suite.name} eval cases (evals/datasets.ts)`,
     });
     await client.createExamples(suite.cases.map((inputs) => ({ inputs, dataset_id: dataset.id })));
   }
