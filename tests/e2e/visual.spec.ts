@@ -83,6 +83,24 @@ test("itinerary map on mobile", async ({ page, isMobile }) => {
   await snap(page, "itinerary-map");
 });
 
+test("itinerary offline on mobile: the map and the assistant cannot load", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "On desktop both load with the page, so they are there offline");
+  await planRomeTrip(page);
+  await page.waitForLoadState("networkidle");
+  await page.context().setOffline(true);
+  await page.getByRole("button", { name: "Map", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Couldn't load the map." })).toBeVisible();
+  await snap(page, "offline-map");
+  await page.getByRole("button", { name: "Open the trip assistant" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Couldn't load the assistant." }),
+  ).toBeVisible();
+  await snap(page, "offline-assistant");
+});
+
 test("itinerary quick actions menu", async ({ page }) => {
   await planRomeTrip(page);
   await page
