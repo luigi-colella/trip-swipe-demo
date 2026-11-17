@@ -10,6 +10,7 @@ import {
 } from "@/components/setup/city-combobox";
 import { TripSetupForm } from "@/components/setup/trip-setup-form";
 import { createTripAction } from "@/server/actions/trips";
+import { CONNECTION_ERROR } from "@/components/call-server";
 
 vi.mock("@/server/actions/trips", () => ({ createTripAction: vi.fn() }));
 
@@ -213,6 +214,20 @@ describe("TripSetupForm (F1)", () => {
     });
     await act(async () => resolve({ error: "City search is unavailable, please retry." }));
     expect(screen.getByRole("alert").textContent).toBe("City search is unavailable, please retry.");
+    expect(screen.getByRole("button", { name: "Start swiping" })).toBeTruthy();
+  });
+
+  it("shows a connection error instead of crashing when the server can't be reached", async () => {
+    // Regression: a rejected form action (offline) crashed the page (no error boundary here).
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(createTripAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    const user = userEvent.setup();
+    render(<TripSetupForm />);
+    await user.type(input(), "ro");
+    await waitFor(() => expect(options()).toHaveLength(2));
+    await user.click(options()[0]);
+    await user.click(screen.getByRole("button", { name: "Start swiping" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(CONNECTION_ERROR);
     expect(screen.getByRole("button", { name: "Start swiping" })).toBeTruthy();
   });
 });

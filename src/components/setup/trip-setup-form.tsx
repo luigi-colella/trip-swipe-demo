@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { humanizeSlug, INTEREST_TAGS } from "@/lib/places";
 import { MAX_DAYS, MIN_DAYS, PACE_HOURS, PACE_LABELS, PACES } from "@/lib/trip";
-import { createTripAction } from "@/server/actions/trips";
+import { createTripAction, type CreateTripState } from "@/server/actions/trips";
 import { CityCombobox, type CitySelection } from "./city-combobox";
+import { CONNECTION_ERROR, callServer } from "@/components/call-server";
 
 const DAY_OPTIONS = Array.from({ length: MAX_DAYS - MIN_DAYS + 1 }, (_, i) => MIN_DAYS + i);
 
@@ -17,7 +18,11 @@ const chip =
   "flex cursor-pointer items-center justify-center rounded-lg border bg-background text-sm font-medium transition-colors select-none not-has-checked:hover:bg-muted has-checked:border-foreground has-checked:bg-foreground has-checked:text-background has-focus-visible:ring-3 has-focus-visible:ring-ring/50";
 
 export function TripSetupForm() {
-  const [state, formAction, pending] = useActionState(createTripAction, undefined);
+  const [state, formAction, pending] = useActionState(
+    (prev: CreateTripState, data: FormData) =>
+      callServer(() => createTripAction(prev, data), { error: CONNECTION_ERROR }),
+    undefined,
+  );
   const [city, setCity] = useState<CitySelection | null>(null);
   const [cityTouched, setCityTouched] = useState(false);
   const cityMissing = cityTouched && !city;

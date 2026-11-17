@@ -12,6 +12,7 @@ import {
   undoSwipeAction,
 } from "@/server/actions/trips";
 import { placeCard, TRIP_ID } from "./fixtures";
+import { CONNECTION_ERROR } from "@/components/call-server";
 
 vi.mock("@/server/actions/trips", () => ({
   recordSwipeAction: vi.fn(),
@@ -236,7 +237,8 @@ describe("SwipeDeck end of the deck", () => {
     await waitFor(() =>
       expect(toast.info).toHaveBeenCalledWith("No new places found for this city."),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    // The toast comes before the transition ends: wait for the button to be back.
+    await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
     expect(screen.getByRole("button", { name: "Finding more places…" })).toBeTruthy();
     await act(async () => resolve({ ok: false, error: "Try later." }));
     expect(toast.error).toHaveBeenCalledWith("Try later.");
@@ -251,6 +253,19 @@ describe("SwipeDeck end of the deck", () => {
     expect(review.hasAttribute("disabled")).toBe(true);
     await act(async () => resolve({ ok: false, error: "Like at least one place first." }));
     expect(toast.error).toHaveBeenCalledWith("Like at least one place first.");
+  });
+
+  it("keeps the deck when Load more or Review can't reach the server", async () => {
+    // Regression: a rejected action (offline) reached the error boundary and replaced the page.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(loadMorePlacesAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(startReviewAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    renderDeck([], [{ place: placeCard("Liked"), decision: "like" }]);
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(CONNECTION_ERROR));
+    await userEvent.click(screen.getByRole("button", { name: "Review shortlist (1)" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: "Load more" })).toBeTruthy();
   });
 
   it("stays quiet when the review opens (the action redirects)", async () => {

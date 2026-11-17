@@ -12,6 +12,7 @@ import { formatVisitTime, humanizeSlug } from "@/lib/places";
 import type { SwipeDecision } from "@/lib/trip";
 import { generateItineraryAction } from "@/server/actions/itinerary";
 import { updateShortlistAction } from "@/server/actions/trips";
+import { CONNECTION_FAILURE, callServer } from "@/components/call-server";
 
 type Change = { placeId: string; decision: SwipeDecision };
 
@@ -32,7 +33,7 @@ export function Shortlist({ tripId, entries }: { tripId: string; entries: DeckEn
   function generate() {
     startPlanning(async () => {
       // Redirects to the itinerary on success.
-      const r = await generateItineraryAction(tripId);
+      const r = await callServer(() => generateItineraryAction(tripId), CONNECTION_FAILURE);
       if (!r.ok) toast.error(r.error);
     });
   }
@@ -40,7 +41,10 @@ export function Shortlist({ tripId, entries }: { tripId: string; entries: DeckEn
   function change(entry: DeckEntry, decision: SwipeDecision) {
     startTransition(async () => {
       apply({ placeId: entry.place.id, decision });
-      const r = await updateShortlistAction(tripId, entry.place.id, decision);
+      const r = await callServer(
+        () => updateShortlistAction(tripId, entry.place.id, decision),
+        CONNECTION_FAILURE,
+      );
       if (!r.ok) toast.error(`Couldn't update ${entry.place.name}. Please try again.`);
     });
   }

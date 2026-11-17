@@ -12,6 +12,7 @@ import { loadChatHistoryAction } from "@/server/actions/chat";
 import { getChatSession, loadHistory, onTripUpdate } from "./chat-session";
 import { ChatMarkdown } from "./chat-markdown";
 import { ChatSkeleton } from "./chat-skeleton";
+import { requestErrorText } from "@/components/call-server";
 
 /**
  * F6 – The conversation with the trip agent (lazy-loaded: it carries the AI SDK client).
@@ -121,7 +122,7 @@ export default function ChatPanel({ tripId }: { tripId: string | null }) {
             role="alert"
             className="flex items-center gap-2 rounded-lg border border-destructive/30 p-2 text-sm"
           >
-            <span className="flex-1">{error.message}</span>
+            <span className="flex-1">{requestErrorText(error)}</span>
             <Button variant="outline" size="sm" onClick={() => void regenerate()}>
               <RotateCcw aria-hidden /> Retry
             </Button>

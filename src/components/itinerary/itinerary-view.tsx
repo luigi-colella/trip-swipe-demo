@@ -40,16 +40,18 @@ import type { MapStop } from "@/components/map/itinerary-map";
 import { useIsDesktop } from "@/components/use-is-desktop";
 import { DayTimeline } from "./day-timeline";
 import { defined } from "@/lib/invariant";
+import { CONNECTION_FAILURE, callServer } from "@/components/call-server";
+import { loadOrFallback } from "@/components/load-or-fallback";
 
 function MapSkeleton() {
   return <Skeleton className="size-full rounded-none" />;
 }
 
 /** Leaflet is loaded only when a map is actually shown (desktop, or the mobile Map toggle). */
-const ItineraryMap = dynamic(() => import("@/components/map/itinerary-map"), {
-  ssr: false,
-  loading: MapSkeleton,
-});
+const ItineraryMap = dynamic(
+  loadOrFallback(() => import("@/components/map/itinerary-map"), "the map"),
+  { ssr: false, loading: MapSkeleton },
+);
 
 function reduceEdit(data: ItineraryData, edit: ItineraryEdit): ItineraryData {
   return applyItineraryEdit(data, edit) ?? data;
@@ -98,7 +100,7 @@ export function ItineraryView({
   function edit(change: ItineraryEdit, place: ItineraryPlace) {
     startEdit(async () => {
       applyEdit(change);
-      const r = await editItineraryAction(tripId, change);
+      const r = await callServer(() => editItineraryAction(tripId, change), CONNECTION_FAILURE);
       if (!r.ok) toast.error(`Couldn't change ${place.name}: ${r.error}`);
       else if (change.type === "change-day")
         toast.success(`${place.name} moved to Day ${change.day + 1}.`);
@@ -107,14 +109,14 @@ export function ItineraryView({
 
   function undo() {
     startEdit(async () => {
-      const r = await undoItineraryAction(tripId);
+      const r = await callServer(() => undoItineraryAction(tripId), CONNECTION_FAILURE);
       if (!r.ok) toast.error(r.error);
     });
   }
 
   function regenerate() {
     startRegenerate(async () => {
-      const r = await regenerateItineraryAction(tripId);
+      const r = await callServer(() => regenerateItineraryAction(tripId), CONNECTION_FAILURE);
       if (!r.ok) toast.error(r.error);
       else if (r.data.source === "fallback") {
         toast.warning("The AI planner is unavailable, so this plan was built by rules only.");

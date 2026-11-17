@@ -1,17 +1,44 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 
 /**
- * Notifications without sonner on first load: its code (and the toaster) loads on the first
- * toast. Sonner replays the toasts created before its toaster subscribed, so the order in
- * which the two imports settle does not matter.
+ * Notifications without sonner on first load: its code (and the toaster) loads once the page
+ * has loaded, or on the first toast if that comes earlier. Loading it ahead matters: the toasts
+ * that report a lost connection must not need the network themselves. Sonner replays the
+ * toasts created before its toaster subscribed, so the order in which the imports settle does
+ * not matter. If the code cannot be loaded, toasts are logged instead of crashing the page.
  */
 
-const SonnerToaster = dynamic(() => import("@/components/ui/sonner").then((m) => m.Toaster), {
-  ssr: false,
-});
+let loading: Promise<[typeof import("sonner"), typeof import("@/components/ui/sonner")]> | null =
+  null;
+
+function loadSonner() {
+  loading ??= Promise.all([import("sonner"), import("@/components/ui/sonner")]).catch(
+    (err: unknown) => {
+      loading = null; // retried by the next toast
+      throw err;
+    },
+  );
+  return loading;
+}
+
+function NoToaster() {
+  return null;
+}
+
+const SonnerToaster = dynamic(
+  () =>
+    loadSonner().then(
+      ([, ui]) => ui.Toaster,
+      (err: unknown) => {
+        console.error("Could not load notifications", err);
+        return NoToaster;
+      },
+    ),
+  { ssr: false },
+);
 
 type Kind = "success" | "info" | "warning" | "error";
 
@@ -28,7 +55,10 @@ function show(kind: Kind, message: string) {
     requested = true;
     for (const listener of listeners) listener();
   }
-  void import("sonner").then(({ toast }) => toast[kind](message));
+  loadSonner().then(
+    ([{ toast }]) => toast[kind](message),
+    (err: unknown) => console.error(`Could not show "${message}"`, err),
+  );
 }
 
 export const toast = {
@@ -38,8 +68,14 @@ export const toast = {
   error: (message: string) => show("error", message),
 };
 
-/** Mounts sonner's toaster once the first toast is shown. */
+/** Mounts sonner's toaster once the first toast is shown; loads its code after the page. */
 export function Toaster() {
+  useEffect(() => {
+    const warm = () => void loadSonner().catch(() => {});
+    if (document.readyState === "complete") return warm();
+    window.addEventListener("load", warm, { once: true });
+    return () => window.removeEventListener("load", warm);
+  }, []);
   const mounted = useSyncExternalStore(
     subscribe,
     () => requested,

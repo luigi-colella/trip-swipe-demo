@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Toaster, toast } from "@/components/toast";
 
 describe("Toaster", () => {
@@ -25,5 +25,21 @@ describe("Toaster", () => {
       expect(await screen.findByText(text)).toBeTruthy();
     }
     expect(document.querySelectorAll("[data-sonner-toaster]")).toHaveLength(1);
+  });
+
+  it("loads sonner once the page has loaded, so later toasts need no network", async () => {
+    const readyState = vi.spyOn(document, "readyState", "get").mockReturnValue("loading");
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const first = render(<Toaster />);
+    first.unmount(); // a toaster gone before the page loaded stops waiting for it
+    expect(remove).toHaveBeenCalledWith("load", expect.any(Function));
+    render(<Toaster />);
+    const loads = add.mock.calls.filter(([type]) => type === "load");
+    expect(loads).toHaveLength(2);
+    readyState.mockRestore();
+    act(() => void window.dispatchEvent(new Event("load")));
+    act(() => toast.info("Ready."));
+    expect(await screen.findByText("Ready.")).toBeTruthy();
   });
 });

@@ -14,6 +14,7 @@ import {
 import type { ChatMessage } from "@/lib/chat";
 import { loadChatHistoryAction } from "@/server/actions/chat";
 import { TRIP_ID } from "./fixtures";
+import { CONNECTION_ERROR } from "@/components/call-server";
 
 /**
  * The chat UI with the real AI SDK client: `fetch` is stubbed with streamed UI message
@@ -333,6 +334,14 @@ describe("ChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(screen.queryByText("Thinking…")).toBeNull());
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("explains a lost connection instead of showing the browser's error", async () => {
+    // Regression: offline, the chat showed the raw "Failed to fetch".
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<ChatPanel tripId={null} />);
+    await send("Hello");
+    expect((await screen.findByRole("alert")).textContent).toContain(CONNECTION_ERROR);
   });
 
   it("limits messages to 500 characters and ignores blank ones", async () => {

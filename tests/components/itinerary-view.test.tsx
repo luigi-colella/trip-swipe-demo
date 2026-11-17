@@ -12,6 +12,7 @@ import {
   undoItineraryAction,
 } from "@/server/actions/itinerary";
 import { itineraryPlace, TRIP_ID } from "./fixtures";
+import { CONNECTION_ERROR } from "@/components/call-server";
 
 vi.mock("@/server/actions/itinerary", () => ({
   editItineraryAction: vi.fn(),
@@ -282,6 +283,29 @@ describe("ItineraryView quick actions (F4)", () => {
     await userEvent.click(undo);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Nothing to undo."));
     expect(undoItineraryAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the itinerary when changes can't reach the server", async () => {
+    // Regression: a rejected action (offline) reached the error boundary and replaced the page.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(editItineraryAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(undoItineraryAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(regenerateItineraryAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    renderView();
+    await action("Colosseum", "Remove from plan");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(`Couldn't change Colosseum: ${CONNECTION_ERROR}`),
+    );
+    await waitFor(() => expect(names()).toEqual(["Colosseum", "Roman Forum", "Vatican Museums"]));
+    const undo = screen.getByRole("button", { name: "Undo" });
+    await waitFor(() => expect(undo.hasAttribute("disabled")).toBe(false));
+    await userEvent.click(undo);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(CONNECTION_ERROR));
+    const again = screen.getByRole("button", { name: "New plan" });
+    await waitFor(() => expect(again.hasAttribute("disabled")).toBe(false));
+    await userEvent.click(again);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3));
+    expect(timeline()).toBeTruthy();
   });
 
   it("disables undo for the first version", () => {

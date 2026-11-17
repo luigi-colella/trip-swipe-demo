@@ -9,16 +9,20 @@ import { Button } from "@/components/ui/button";
 import { useIsDesktop } from "@/components/use-is-desktop";
 import { isTripId } from "@/lib/trip";
 import { ChatSkeleton } from "./chat-skeleton";
+import { loadOrFallback } from "@/components/load-or-fallback";
 
 /** The conversation code (AI SDK client) loads only when a chat is actually shown. */
-const ChatPanel = dynamic(() => import("./chat-panel"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex-1 p-4">
-      <ChatSkeleton lines={2} />
-    </div>
-  ),
-});
+const ChatPanel = dynamic(
+  loadOrFallback(() => import("./chat-panel"), "the assistant"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 p-4">
+        <ChatSkeleton lines={2} />
+      </div>
+    ),
+  },
+);
 
 function ChatHeader({
   onClose,

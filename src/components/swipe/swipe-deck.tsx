@@ -25,6 +25,7 @@ import {
 } from "@/server/actions/trips";
 import { PlaceCardView } from "./place-card";
 import { defined } from "@/lib/invariant";
+import { CONNECTION_FAILURE, callServer } from "@/components/call-server";
 
 /** Only the top cards live in the DOM; the next ones just get their photo preloaded. */
 const VISIBLE_CARDS = 3;
@@ -116,7 +117,7 @@ export function SwipeDeck({
 
   function loadMore() {
     startLoadMore(async () => {
-      const r = await loadMorePlacesAction(tripId);
+      const r = await callServer(() => loadMorePlacesAction(tripId), CONNECTION_FAILURE);
       if (!r.ok) toast.error(r.error);
       else if (r.data.length === 0) toast.info("No new places found for this city.");
       else dispatch({ type: "append", places: r.data });
@@ -125,7 +126,7 @@ export function SwipeDeck({
 
   function review() {
     startReview(async () => {
-      const r = await startReviewAction(tripId);
+      const r = await callServer(() => startReviewAction(tripId), CONNECTION_FAILURE);
       if (!r.ok) toast.error(r.error);
     });
   }

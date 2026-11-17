@@ -7,6 +7,7 @@ import type { DeckEntry } from "@/lib/deck";
 import { generateItineraryAction } from "@/server/actions/itinerary";
 import { updateShortlistAction } from "@/server/actions/trips";
 import { placeCard, TRIP_ID } from "./fixtures";
+import { CONNECTION_ERROR } from "@/components/call-server";
 
 vi.mock("@/server/actions/trips", () => ({ updateShortlistAction: vi.fn() }));
 vi.mock("@/server/actions/itinerary", () => ({ generateItineraryAction: vi.fn() }));
@@ -77,7 +78,23 @@ describe("Shortlist (F10)", () => {
     expect(generateItineraryAction).toHaveBeenCalledWith(TRIP_ID);
     resolve({ ok: false, error: "Like at least one place first." });
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Like at least one place first."));
-    expect(screen.getByRole("button", { name: "Generate itinerary" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeTruthy();
+  });
+
+  it("keeps the page when the server can't be reached, explaining with a toast", async () => {
+    // Regression: a rejected action (offline) reached the error boundary and replaced the page.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(updateShortlistAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(generateItineraryAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    render(<Shortlist tripId={TRIP_ID} entries={entries} />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove Roman Forum" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't update Roman Forum. Please try again."),
+    );
+    await waitFor(() => expect(screen.getByText("2 places · 1 must-see")).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Generate itinerary" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(CONNECTION_ERROR));
+    expect(await screen.findByRole("button", { name: "Generate itinerary" })).toBeTruthy();
   });
 
   it("stays quiet when generation succeeds (the action redirects)", async () => {
