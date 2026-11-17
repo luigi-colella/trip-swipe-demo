@@ -138,7 +138,10 @@ export async function streamChatTurn(
   deps: ChatDeps,
   turn: ChatTurn,
 ): Promise<ReadableStream<UIMessageChunk>> {
-  const hit = detectPromptAttack(turn.text);
+  // The home history comes from the browser like the message itself: it is checked the same
+  // way, or an attack moved into an earlier (even "assistant") turn would skip the guardrail.
+  const history = turn.tripId ? [] : (turn.history ?? []);
+  const hit = [turn.text, ...history.map((h) => h.text)].map(detectPromptAttack).find(Boolean);
   if (hit) return refuse(hit, turn.text);
 
   const threadId = turn.tripId;
@@ -146,11 +149,9 @@ export async function streamChatTurn(
 
   const session: AgentSession = { tripId: threadId ?? null };
   const input: BaseLanguageModelInput = [
-    ...(threadId
-      ? []
-      : (turn.history ?? []).map((h) =>
-          h.role === "user" ? new HumanMessage(redactPii(h.text)) : new AIMessage(h.text),
-        )),
+    ...history.map((h) =>
+      h.role === "user" ? new HumanMessage(redactPii(h.text)) : new AIMessage(h.text),
+    ),
     // LLM02: personal data never reaches the model or the checkpointer.
     new HumanMessage(redactPii(turn.text)),
   ];
