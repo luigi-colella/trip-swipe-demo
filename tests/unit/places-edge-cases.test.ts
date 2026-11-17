@@ -173,6 +173,50 @@ describe("wikipedia text and URLs", () => {
     });
     expect(result.get("P")?.image?.thumbUrl).toBe("https://upload.wikimedia.org/p.jpg?width=640");
   });
+
+  const ORIGINAL = "https://upload.wikimedia.org/wikipedia/commons/8/82/Sistina-interno.jpg";
+  it.each([
+    // An unscaled raster original at least 500 px wide: its 500 px standard thumbnail.
+    [
+      `${ORIGINAL}?utm_content=thumbnail_unscaled`,
+      782,
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Sistina-interno.jpg/500px-Sistina-interno.jpg",
+    ],
+    [ORIGINAL, 500, expect.stringContaining("/thumb/8/82/Sistina-interno.jpg/500px-")],
+    // Too narrow for a smaller standard width, or width unknown: the original as is.
+    [ORIGINAL, 499, ORIGINAL],
+    [ORIGINAL, undefined, ORIGINAL],
+    // Not a raster original (SVG thumbnails are PNGs), already a thumbnail, another host.
+    [
+      "https://upload.wikimedia.org/wikipedia/commons/a/ab/Map.svg",
+      800,
+      "https://upload.wikimedia.org/wikipedia/commons/a/ab/Map.svg",
+    ],
+    [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/C.jpg/960px-C.jpg",
+      640,
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/C.jpg/960px-C.jpg",
+    ],
+    [
+      "https://example.org/wikipedia/commons/8/82/S.jpg",
+      800,
+      "https://example.org/wikipedia/commons/8/82/S.jpg",
+    ],
+  ])("sizes the photo %s (%s px wide)", (source, width, expected) => {
+    const result = parseWikiResponse(["P"], {
+      query: {
+        pages: [
+          {
+            title: "P",
+            coordinates: [{ lat: 1, lon: 2, primary: true }],
+            pageimage: "P.jpg",
+            thumbnail: { source, width },
+          },
+        ],
+      },
+    });
+    expect(result.get("P")?.image?.thumbUrl).toEqual(expected);
+  });
 });
 
 describe("client-safe place cards", () => {

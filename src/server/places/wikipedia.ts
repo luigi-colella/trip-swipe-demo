@@ -14,6 +14,14 @@ const WIKI_TTL_MS = 7 * DAY_MS;
 const WIKI_BATCH = 20;
 const COMMONS_BATCH = 50;
 const THUMB_WIDTH = 640;
+/**
+ * Commons serves only standard thumbnail widths (https://w.wiki/GHai): the requested width is
+ * rounded up to 960 px, and an original narrower than that comes back unscaled, often a much
+ * heavier file. Such originals get the next smaller standard width instead.
+ */
+const SMALL_THUMB_WIDTH = 500;
+const ORIGINAL_PATH =
+  /^(\/wikipedia\/[^/]+)\/([0-9a-f]\/[0-9a-f]{2}\/([^/]+\.(?:jpe?g|png|webp)))$/i;
 const PAGEVIEW_DAYS = 30;
 
 export type WikiPage = {
@@ -52,7 +60,7 @@ const WikiResponse = z.object({
             fullurl: z.string().optional(),
             extract: z.string().optional(),
             pageimage: z.string().optional(),
-            thumbnail: z.object({ source: z.string() }).optional(),
+            thumbnail: z.object({ source: z.string(), width: z.number().optional() }).optional(),
             coordinates: z
               .array(
                 z.object({ lat: z.number(), lon: z.number(), primary: z.boolean().optional() }),
@@ -103,11 +111,20 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
-/** Removes tracking query parameters Wikimedia appends to thumbnail URLs. */
-function cleanThumbUrl(url: string): string {
-  const u = new URL(url);
+/**
+ * Removes tracking query parameters Wikimedia appends to thumbnail URLs, and swaps an unscaled
+ * raster original at least SMALL_THUMB_WIDTH wide for its standard thumbnail of that width.
+ */
+function cleanThumbUrl({ source, width }: { source: string; width?: number }): string {
+  const u = new URL(source);
   for (const key of [...u.searchParams.keys()])
     if (key.startsWith("utm_")) u.searchParams.delete(key);
+  // An original: /wikipedia/<project>/<a>/<ab>/<file>; thumbnails live under /thumb/.
+  const original = ORIGINAL_PATH.exec(u.pathname);
+  if (u.hostname === "upload.wikimedia.org" && original && (width ?? 0) >= SMALL_THUMB_WIDTH) {
+    const [, project, path, file] = original;
+    u.pathname = `${project}/thumb/${path}/${SMALL_THUMB_WIDTH}px-${file}`;
+  }
   return u.toString();
 }
 
@@ -165,7 +182,7 @@ export function parseWikiResponse(
       popularity,
       image:
         p.pageimage && p.thumbnail
-          ? { fileName: p.pageimage, thumbUrl: cleanThumbUrl(p.thumbnail.source) }
+          ? { fileName: p.pageimage, thumbUrl: cleanThumbUrl(p.thumbnail) }
           : null,
     });
   }
