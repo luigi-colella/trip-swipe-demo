@@ -160,6 +160,42 @@ describe("SwipeDeck buttons and keyboard (F3)", () => {
     // Cards 4 and 5 come after the three in the DOM; card 5 has no photo.
     expect(created).toEqual(["https://img/4.jpg"]);
   });
+
+  it("waits for the page to load before preloading, so the top photo loads first", () => {
+    const created: string[] = [];
+    vi.stubGlobal(
+      "Image",
+      class {
+        set src(value: string) {
+          created.push(value);
+        }
+      },
+    );
+    const readyState = vi.spyOn(document, "readyState", "get").mockReturnValue("loading");
+    try {
+      renderDeck(deck(4, (i) => ({ imageUrl: `https://img/${i + 1}.jpg` })));
+      expect(created).toEqual([]);
+      window.dispatchEvent(new Event("load"));
+      expect(created).toEqual(["https://img/4.jpg"]);
+    } finally {
+      readyState.mockRestore();
+    }
+  });
+
+  it("gives the top card's photo a high fetch priority and the cards behind it a low one", () => {
+    renderDeck(deck(3, (i) => ({ imageUrl: `https://img/${i + 1}.jpg` })));
+    const priorities = Array.from(document.querySelectorAll("img"), (img) => [
+      img.getAttribute("src"),
+      img.getAttribute("fetchpriority"),
+    ]);
+    expect(priorities).toEqual(
+      expect.arrayContaining([
+        ["https://img/1.jpg", "high"],
+        ["https://img/2.jpg", "low"],
+        ["https://img/3.jpg", "low"],
+      ]),
+    );
+  });
 });
 
 describe("SwipeDeck end of the deck", () => {

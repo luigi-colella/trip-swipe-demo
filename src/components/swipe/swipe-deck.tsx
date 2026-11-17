@@ -144,16 +144,22 @@ export function SwipeDeck({
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Warm the browser cache for the photos right after the cards in the DOM.
+  // Warm the browser cache for the photos right after the cards in the DOM, once the page has
+  // loaded: on a slow network they would otherwise compete with the top card's photo (LCP).
   const upcoming = state.deck
     .slice(VISIBLE_CARDS, VISIBLE_CARDS + PRELOADED_PHOTOS)
     .flatMap((p) => p.imageUrl ?? []);
   const upcomingKey = upcoming.join("|");
   useEffect(() => {
-    for (const src of upcomingKey.split("|").filter(Boolean)) {
-      const img = new window.Image();
-      img.src = src;
-    }
+    const preload = () => {
+      for (const src of upcomingKey.split("|").filter(Boolean)) {
+        const img = new window.Image();
+        img.src = src;
+      }
+    };
+    if (document.readyState === "complete") return preload();
+    window.addEventListener("load", preload, { once: true });
+    return () => window.removeEventListener("load", preload);
   }, [upcomingKey]);
 
   return (
@@ -407,7 +413,8 @@ function DeckCard({
       onPointerUp={onPointerEnd}
       onPointerCancel={onPointerEnd}
     >
-      <PlaceCardView place={place} eager />
+      {/* The top card's photo is the LCP: the cards behind it must not compete for bandwidth. */}
+      <PlaceCardView place={place} eager fetchPriority={isTop ? "high" : "low"} />
       {isTop && (
         <>
           <Stamp

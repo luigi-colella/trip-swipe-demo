@@ -7,7 +7,15 @@ const link =
   "underline-offset-2 outline-none hover:underline focus-visible:rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** F2 + F9: photo, name, category, visit time, pitch and provenance. */
-export function PlaceCardView({ place, eager }: { place: Place; eager?: boolean }) {
+export function PlaceCardView({
+  place,
+  eager,
+  fetchPriority,
+}: {
+  place: Place;
+  eager?: boolean;
+  fetchPriority?: "high" | "low";
+}) {
   return (
     <article className="flex size-full flex-col overflow-hidden rounded-2xl border bg-card shadow-lg select-none">
       <div className="relative min-h-0 flex-1 bg-muted">
@@ -16,6 +24,7 @@ export function PlaceCardView({ place, eager }: { place: Place; eager?: boolean 
           alt={place.name}
           sizes="(max-width: 640px) 100vw, 384px"
           eager={eager}
+          fetchPriority={fetchPriority}
         />
         <Badge variant="secondary" className="absolute top-3 left-3 bg-background/90">
           {humanizeSlug(place.category)}

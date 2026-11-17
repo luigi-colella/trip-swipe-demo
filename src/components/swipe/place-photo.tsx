@@ -6,7 +6,7 @@ import { Landmark } from "lucide-react";
 import { cn } from "cn";
 
 /**
- * Wikimedia thumbnail (already 640 px wide, so no optimization round-trip) with a neutral
+ * Wikimedia thumbnail (already sized by Commons, so no optimization round-trip) with a neutral
  * fallback when the place has no licensed photo or the image fails to load.
  */
 export function PlacePhoto({
@@ -14,12 +14,14 @@ export function PlacePhoto({
   alt,
   sizes,
   eager,
+  fetchPriority,
   className,
 }: {
   src: string | null;
   alt: string;
   sizes: string;
   eager?: boolean;
+  fetchPriority?: "high" | "low";
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
@@ -45,6 +47,7 @@ export function PlacePhoto({
       unoptimized
       sizes={sizes}
       loading={eager ? "eager" : "lazy"}
+      fetchPriority={fetchPriority}
       draggable={false}
       className={cn("object-cover", className)}
       onError={() => setFailed(true)}
