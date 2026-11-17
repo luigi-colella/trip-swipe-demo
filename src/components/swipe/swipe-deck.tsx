@@ -11,7 +11,7 @@ import {
   type Ref,
 } from "react";
 import { Heart, ListChecks, Loader2, RotateCcw, Sparkles, Star, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { deckReducer, shortlistCount, type DeckEntry } from "@/lib/deck";

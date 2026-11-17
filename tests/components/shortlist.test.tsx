@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Shortlist } from "@/components/review/shortlist";
 import type { DeckEntry } from "@/lib/deck";
@@ -21,7 +21,7 @@ const entries: DeckEntry[] = [
 beforeEach(() => {
   vi.mocked(updateShortlistAction).mockReset().mockResolvedValue({ ok: true });
   vi.mocked(generateItineraryAction).mockReset();
-  vi.spyOn(toast, "error").mockImplementation(() => "");
+  vi.spyOn(toast, "error").mockImplementation(() => {});
 });
 
 describe("Shortlist (F10)", () => {

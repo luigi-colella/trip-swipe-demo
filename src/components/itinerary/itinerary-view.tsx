@@ -12,7 +12,7 @@ import {
   TriangleAlert,
   Undo2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

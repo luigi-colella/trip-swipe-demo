@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SwipeDeck } from "@/components/swipe/swipe-deck";
 import type { DeckEntry } from "@/lib/deck";
@@ -34,7 +34,7 @@ beforeEach(() => {
   vi.mocked(loadMorePlacesAction).mockReset();
   vi.mocked(startReviewAction).mockReset();
   for (const kind of ["error", "info"] as const) {
-    vi.spyOn(toast, kind).mockImplementation(() => "");
+    vi.spyOn(toast, kind).mockImplementation(() => {});
   }
 });
 afterEach(() => vi.unstubAllGlobals());

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plane } from "lucide-react";
 import { AiBusyBanner } from "@/components/ai-busy-banner";
 import { ChatDock, ChatDockForRoute } from "@/components/chat/chat-dock";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -59,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={<ChatDock tripId={null} />}>
           <ChatDockForRoute />
         </Suspense>
-        <Toaster position="top-center" />
+        <Toaster />
       </body>
     </html>
   );

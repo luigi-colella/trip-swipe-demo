@@ -3,7 +3,7 @@
 import { useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, LoaderCircle, Sparkles, Star, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { cn } from "cn";
 import { PlacePhoto } from "@/components/swipe/place-photo";
 import { Button } from "@/components/ui/button";

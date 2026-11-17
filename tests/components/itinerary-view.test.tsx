@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/toast";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ItineraryView } from "@/components/itinerary/itinerary-view";
 import type { ItineraryData, ItineraryPlace } from "@/lib/itinerary";
@@ -120,7 +120,7 @@ beforeEach(() => {
   vi.mocked(undoItineraryAction).mockReset().mockResolvedValue({ ok: true });
   vi.mocked(regenerateItineraryAction).mockReset();
   for (const kind of ["error", "success", "warning"] as const) {
-    vi.spyOn(toast, kind).mockImplementation(() => "");
+    vi.spyOn(toast, kind).mockImplementation(() => {});
   }
 });
 afterEach(() => vi.unstubAllGlobals());
