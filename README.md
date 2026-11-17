@@ -233,8 +233,8 @@ Deterministic controls only, following the OWASP Top 10 for LLM Applications (20
 - **Performance budgets:** `tests/e2e/performance.spec.ts` checks on the production build that
   each page loads < 200 KB of gzipped JavaScript up front (the chat, Leaflet and the stop
   menus load on demand) and that CLS stays < 0.05 with a 4× slower CPU.
-- **Layout:** `tests/e2e/layout.spec.ts` checks every step at 360×640, 390×844, 768 and
-  1280 px for horizontal overflow; screenshot tests cover the look (`visual.spec.ts`).
+- **Layout:** `tests/e2e/layout.spec.ts` checks every step at 320×568, 360×640, 390×844, 768
+  and 1280 px for horizontal overflow; screenshot tests cover the look (`visual.spec.ts`).
 - **Lighthouse** (manual): with `npm run build && npm start` running, e.g.
   `npx lighthouse http://localhost:3000 --view` (mobile, simulated 4× CPU and slow 4G).
 

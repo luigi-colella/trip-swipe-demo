@@ -2,12 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { hydrated, openChat, planRomeTrip } from "./helpers";
 
 /**
- * Visual QA sizes (§2): every step fits 360×640, 390×844, 768 and 1280+ without horizontal
+ * Visual QA sizes (§2): every step fits 320×568, 360×640, 390×844, 768 and 1280+ without horizontal
  * scrolling or content cut at the right edge. Screenshot tests cover the look on two sizes;
- * this covers the layout on all four.
+ * this covers the layout on all five.
  */
 
 const SIZES = [
+  { width: 320, height: 568 },
   { width: 360, height: 640 },
   { width: 390, height: 844 },
   { width: 768, height: 1024 },

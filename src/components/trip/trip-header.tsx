@@ -62,7 +62,8 @@ export function TripHeader({
                 >
                   {s.done ? <Check className="size-3" /> : i + 1}
                 </span>
-                {s.label}
+                {/* Below 360 px only the current step is named on screen (all are for readers). */}
+                <span className={cn(!isCurrent && "max-[359px]:sr-only")}>{s.label}</span>
               </>
             );
             const className = cn(
@@ -71,7 +72,7 @@ export function TripHeader({
             );
             return (
               <li key={s.key} className="flex items-center gap-1">
-                {/* Short connectors on phones: the four steps must fit 360 px. */}
+                {/* Short connectors on phones: the four steps must fit 320 px. */}
                 {i > 0 && <span className="h-px w-2 bg-border sm:w-6" aria-hidden />}
                 {s.href && !isCurrent ? (
                   <Link
