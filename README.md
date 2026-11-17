@@ -251,10 +251,12 @@ To refresh `docs/media/demo.gif`, convert the video with any tool; with
 [ffmpeg](https://ffmpeg.org) (not needed by the project):
 
 ```bash
-ffmpeg -i test-results/demo/record-demo/video.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 docs/media/demo.gif
+ffmpeg -ss 1 -i test-results/demo/record-demo/video.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 docs/media/demo.gif
 ```
 
-These settings keep the GIF around 5 MB.
+`-ss 1` skips the blank frames recorded while the first page loads, so the GIF (and its
+preview) starts on the setup screen; if a new recording still starts blank, raise it. These
+settings keep the GIF under 5 MB.
 
 ## Evals with LangSmith
 
