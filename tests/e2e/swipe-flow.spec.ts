@@ -121,7 +121,16 @@ test("swipe with buttons, keyboard and drag, undo, then review the shortlist", a
   expect(errors).toEqual([]);
 });
 
-test("an unknown trip shows the not-found page", async ({ page }) => {
-  await page.goto("/trip/00000000-0000-4000-8000-000000000000/swipe");
-  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+test("an unknown trip shows the not-found page with a 404 status", async ({ page }) => {
+  // Regression: the streamed page shell fixed the status at 200 before the trip was checked.
+  const unknown = "/trip/00000000-0000-4000-8000-000000000000";
+  for (const path of [`${unknown}/swipe`, `${unknown}/review`, `${unknown}/itinerary`, unknown]) {
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  }
+  expect((await page.goto("/trip/not-a-trip/swipe"))?.status()).toBe(404);
+  // A real trip is not affected.
+  await createRomeTrip(page);
+  expect((await page.reload())?.status()).toBe(200);
 });
