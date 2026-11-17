@@ -14,7 +14,7 @@ import { Heart, ListChecks, Loader2, RotateCcw, Sparkles, Star, X } from "lucide
 import { toast } from "@/components/toast";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { deckReducer, shortlistCount, type DeckEntry } from "@/lib/deck";
+import { deckReducer, shortlistCount, type DeckAction, type DeckEntry } from "@/lib/deck";
 import type { PlaceCard } from "@/lib/places";
 import type { SwipeDecision } from "@/lib/trip";
 import {
@@ -57,11 +57,19 @@ export function SwipeDeck({
   initialDeck: PlaceCard[];
   initialHistory: DeckEntry[];
 }) {
-  const [state, dispatch] = useReducer(deckReducer, {
+  const [state, dispatchToReact] = useReducer(deckReducer, {
     deck: initialDeck,
     history: initialHistory,
     interests,
   });
+  // The deck as of the last action, ahead of React's render: key presses can arrive before the
+  // previous swipe re-rendered, and undo must target the swipe really made last (or the server
+  // would forget a different place than the deck).
+  const live = useRef(state);
+  function dispatch(action: DeckAction) {
+    live.current = deckReducer(live.current, action);
+    dispatchToReact(action);
+  }
   const [announcement, setAnnouncement] = useState("");
   const [loadingMore, startLoadMore] = useTransition();
   const [reviewPending, startReview] = useTransition();
@@ -87,7 +95,7 @@ export function SwipeDeck({
   }
 
   function undo() {
-    const last = state.history.at(-1);
+    const last = live.current.history.at(-1);
     if (!last) return;
     dispatch({ type: "undo", placeId: last.place.id });
     setAnnouncement(`Undone: ${last.place.name}`);

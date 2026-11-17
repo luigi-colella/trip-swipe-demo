@@ -123,6 +123,21 @@ describe("SwipeDeck buttons and keyboard (F3)", () => {
     expect(screen.getByText("Undone: Place 1")).toBeTruthy();
   });
 
+  it("undoes the swipe just made even before the deck re-renders (fast keys)", () => {
+    // Regression: undo used the last rendered history, so a quick swipe + undo sent the undo of
+    // the previous place to the server while the deck kept it: the two went out of sync.
+    const [previous, ...cards] = deck(3);
+    renderDeck(cards, [{ place: previous, decision: "like" }]);
+    act(() => {
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+      fireEvent.keyDown(window, { key: "Backspace" });
+    });
+    expect(recordSwipeAction).toHaveBeenCalledWith(TRIP_ID, cards[0].id, "like");
+    expect(vi.mocked(undoSwipeAction).mock.calls).toEqual([[TRIP_ID, cards[0].id]]);
+    expect(topName()).toBe("Place 2");
+    expect(progress()).toBe("Place 2 of 3");
+  });
+
   it("rolls back a swipe and an undo that the server rejects", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(recordSwipeAction).mockResolvedValueOnce({ ok: false, error: "Trip not found." });
