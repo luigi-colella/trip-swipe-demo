@@ -121,6 +121,36 @@ test("swipe with buttons, keyboard and drag, undo, then review the shortlist", a
   expect(errors).toEqual([]);
 });
 
+test("undo right after a swipe lands keeps the deck and the saved swipes in sync", async ({
+  page,
+}) => {
+  // Regression (found by random testing): an undo pressed in the moment between a swipe's
+  // exit animation ending and the deck re-rendering undid the place before it on the server,
+  // while the deck kept it. Each attempt hits that moment with a different delay.
+  const counters = async () => ({
+    progress: await page.getByText(/^(Place \d+ of \d+|All \d+ places seen)$/).textContent(),
+    shortlist: await page.getByText(/^\d+ in shortlist$/).textContent(),
+  });
+  await createRomeTrip(page);
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByText("Place 2 of 8")).toBeVisible();
+
+  for (let delay = 240; delay <= 300; delay += 3) {
+    await page.evaluate(async (ms) => {
+      const press = (key: string) => window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+      press(ms % 2 ? "ArrowLeft" : "ArrowRight");
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      press("Backspace");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }, delay);
+  }
+  await page.waitForLoadState("networkidle");
+  const shown = await counters();
+  await page.reload();
+  await hydrated(page.getByRole("button", { name: "Undo" }));
+  expect(await counters()).toEqual(shown);
+});
+
 test("an unknown trip shows the not-found page with a 404 status", async ({ page }) => {
   // Regression: the streamed page shell fixed the status at 200 before the trip was checked.
   const unknown = "/trip/00000000-0000-4000-8000-000000000000";
