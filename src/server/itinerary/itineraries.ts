@@ -11,6 +11,7 @@ import { itineraries, places, swipes, trips } from "@/server/db/schema";
 import { toPlaceCard, type TripWithCity } from "@/server/trips/trips";
 import type { PlannerPlace } from "./fallback";
 import { planItinerary, type PlannerDeps, type PlannerResult } from "./graph";
+import { defined } from "@/lib/invariant";
 
 /**
  * Itinerary versions (F4). Every change — generation, regeneration, quick action — is saved
@@ -28,21 +29,27 @@ export function getLatestItinerary(db: AppDatabase, tripId: string): ItineraryVe
     .limit(1)
     .get();
   if (!row) return undefined;
-  const versions = db
-    .select({ n: sql<number>`count(*)` })
-    .from(itineraries)
-    .where(eq(itineraries.tripId, tripId))
-    .get()!.n;
+  const versions = defined(
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(itineraries)
+      .where(eq(itineraries.tripId, tripId))
+      .get(),
+    "the version count",
+  ).n;
   return { version: row.version, data: ItineraryDataSchema.parse(row.data), versions };
 }
 
 export function saveItinerary(db: AppDatabase, tripId: string, data: ItineraryData): number {
   return db.transaction((tx) => {
-    const { max } = tx
-      .select({ max: sql<number>`coalesce(max(${itineraries.version}), 0)` })
-      .from(itineraries)
-      .where(eq(itineraries.tripId, tripId))
-      .get()!;
+    const { max } = defined(
+      tx
+        .select({ max: sql<number>`coalesce(max(${itineraries.version}), 0)` })
+        .from(itineraries)
+        .where(eq(itineraries.tripId, tripId))
+        .get(),
+      "the latest version",
+    );
     const version = max + 1;
     tx.insert(itineraries).values({ id: crypto.randomUUID(), tripId, version, data }).run();
     tx.update(trips).set({ updatedAt: new Date() }).where(eq(trips.id, tripId)).run();

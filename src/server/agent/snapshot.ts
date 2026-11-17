@@ -5,6 +5,7 @@ import type { AppDatabase } from "@/server/db/connection";
 import { getItineraryPlaces, getLatestItinerary } from "@/server/itinerary/itineraries";
 import { getCityPool } from "@/server/places/discover";
 import { buildDeck, getShortlist, getSwipeHistory, getTrip } from "@/server/trips/trips";
+import { defined } from "@/lib/invariant";
 
 /**
  * Compact trip state injected into the agent's system prompt on every model call (§3.3 C), so
@@ -41,12 +42,14 @@ export function buildTripSnapshot(db: AppDatabase, tripId: string | null): strin
     latest.data.days.forEach((day, i) => {
       const schedule = scheduleItineraryDay(day, byId, budget);
       // Itineraries only reference places of the trip's city (like the itinerary view).
-      const stops = day.stops.map((s) => byId.get(s.placeId)!.name);
+      const stops = day.stops.map((s) => defined(byId.get(s.placeId), "a planned place").name);
       lines.push(
         `- Day ${i + 1} "${day.title}" (${formatVisitTime(schedule.activeMinutes)}): ${stops.length ? stops.join(", ") : "free day"}`,
       );
     });
-    const excluded = latest.data.excluded.map((x) => `${byId.get(x.placeId)!.name} (${x.reason})`);
+    const excluded = latest.data.excluded.map(
+      (x) => `${defined(byId.get(x.placeId), "an excluded place").name} (${x.reason})`,
+    );
     if (excluded.length) lines.push(`Excluded: ${excluded.join("; ")}`);
   }
 

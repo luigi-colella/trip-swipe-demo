@@ -39,6 +39,7 @@ import {
 import type { MapStop } from "@/components/map/itinerary-map";
 import { useIsDesktop } from "@/components/use-is-desktop";
 import { DayTimeline } from "./day-timeline";
+import { defined } from "@/lib/invariant";
 
 function MapSkeleton() {
   return <Skeleton className="size-full rounded-none" />;
@@ -90,7 +91,7 @@ export function ItineraryView({
 
   const mapStops: MapStop[] = schedules[current].items.flatMap((item) => {
     if (item.kind !== "visit") return [];
-    const p = byId.get(item.placeId)!;
+    const p = defined(byId.get(item.placeId), "a planned place");
     return [{ id: p.id, number: item.number, name: p.name, lat: p.lat, lon: p.lon }];
   });
 
@@ -178,7 +179,7 @@ export function ItineraryView({
         {itinerary.days.map((d, i) => {
           const schedule = schedules[i];
           const stops = schedule.items.flatMap((it) =>
-            it.kind === "visit" ? [byId.get(it.placeId)!] : [],
+            it.kind === "visit" ? [defined(byId.get(it.placeId), "a planned place")] : [],
           );
           const links = googleMapsDayUrls(stops);
           return (

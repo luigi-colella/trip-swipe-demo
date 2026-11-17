@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cachedJson, DAY_MS, fetchJson, type HttpDeps } from "./http-cache";
+import { defined } from "@/lib/invariant";
 
 /** City autocomplete through Photon (komoot), backed by OpenStreetMap. */
 const PHOTON_URL = "https://photon.komoot.io/api/";
@@ -75,7 +76,8 @@ export class LruCache<V> {
   set(key: string, value: V) {
     this.map.delete(key);
     this.map.set(key, value);
-    if (this.map.size > this.max) this.map.delete(this.map.keys().next().value!);
+    if (this.map.size > this.max)
+      this.map.delete(defined(this.map.keys().next().value, "the oldest key"));
   }
 }
 

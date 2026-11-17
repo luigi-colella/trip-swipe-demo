@@ -1,4 +1,5 @@
 import type { LatLon } from "./geo";
+import { defined } from "@/lib/invariant";
 
 /**
  * F7 – Google Maps export with Maps URLs (no API key):
@@ -16,7 +17,7 @@ const coord = (p: LatLon) => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 function directionsUrl(stops: readonly LatLon[]): string {
   const params = new URLSearchParams({ api: "1" });
   if (stops.length > 1) params.set("origin", coord(stops[0]));
-  params.set("destination", coord(stops.at(-1)!));
+  params.set("destination", coord(defined(stops.at(-1), "the last stop")));
   if (stops.length > 2) params.set("waypoints", stops.slice(1, -1).map(coord).join("|"));
   params.set("travelmode", "walking");
   return `${DIRECTIONS_URL}?${params.toString()}`;

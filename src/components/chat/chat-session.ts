@@ -7,6 +7,7 @@ import {
   type ChatRequest,
   type TripUpdate,
 } from "@/lib/chat";
+import { defined } from "@/lib/invariant";
 
 /**
  * Chat sessions outlive the panel: the panel remounts when the layout switches between the
@@ -35,7 +36,7 @@ function createSession(tripId: string | null): ChatSession {
       prepareSendMessagesRequest: ({ messages }) => {
         const body: ChatRequest = {
           tripId: session.tripId ?? undefined,
-          text: messageText(messages.at(-1)!),
+          text: messageText(defined(messages.at(-1), "the message being sent")),
           history: session.tripId ? [] : toHomeHistory(messages.slice(0, -1)),
         };
         return { body };
@@ -82,7 +83,7 @@ export async function loadHistory(
   load: (tripId: string) => Promise<ChatMessage[]>,
 ): Promise<void> {
   try {
-    const history = await load(session.tripId!);
+    const history = await load(defined(session.tripId, "the trip of the conversation"));
     if (session.chat.messages.length === 0) session.chat.messages = history;
   } catch (err) {
     console.error("Could not load the conversation", err);

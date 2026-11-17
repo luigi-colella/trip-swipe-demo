@@ -7,6 +7,7 @@ import type { AppDatabase } from "@/server/db/connection";
 import { cities, places, swipes, trips } from "@/server/db/schema";
 import type { City } from "@/server/places/cities";
 import type { Place } from "@/server/places/discover";
+import { defined } from "@/lib/invariant";
 
 /**
  * Trip state (F1, F3, F8, F10). Plain functions over an injected database so that server
@@ -121,11 +122,14 @@ export function removeSwipe(db: AppDatabase, tripId: string, placeId: string): b
 }
 
 export function countShortlist(db: AppDatabase, tripId: string): number {
-  return db
-    .select({ n: sql<number>`count(*)` })
-    .from(swipes)
-    .where(and(eq(swipes.tripId, tripId), inArray(swipes.decision, ["like", "must"])))
-    .get()!.n;
+  return defined(
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(swipes)
+      .where(and(eq(swipes.tripId, tripId), inArray(swipes.decision, ["like", "must"])))
+      .get(),
+    "the shortlist count",
+  ).n;
 }
 
 /** Liked and must-see places (F10): must-see first, then in swipe order. */

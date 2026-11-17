@@ -3,6 +3,7 @@ import { slugify } from "@/lib/places";
 import type { AppDatabase } from "@/server/db/connection";
 import { cities } from "@/server/db/schema";
 import type { CitySuggestion } from "./photon";
+import { defined } from "@/lib/invariant";
 
 export type City = typeof cities.$inferSelect;
 
@@ -25,5 +26,5 @@ export function upsertCity(db: AppDatabase, suggestion: CitySuggestion): City {
     })
     .onConflictDoNothing({ target: cities.slug })
     .run();
-  return db.select().from(cities).where(eq(cities.slug, slug)).get()!;
+  return defined(db.select().from(cities).where(eq(cities.slug, slug)).get(), "the stored city");
 }

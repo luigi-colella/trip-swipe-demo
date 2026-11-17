@@ -4,6 +4,7 @@ import {
 } from "@langchain/core/language_models/chat_models";
 import { AIMessage, AIMessageChunk, type BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { ChatGenerationChunk, type ChatResult } from "@langchain/core/outputs";
+import { defined } from "@/lib/invariant";
 
 /**
  * Scripted chat agent for LLM_MODE=fake (tests, E2E, offline UI work). Plain keyword rules
@@ -55,7 +56,7 @@ export function fakeAgentReply(messages: readonly BaseMessage[]): AIMessage {
   }
   if (results.length) return new AIMessage(results.join(" "));
 
-  const said = text(messages.at(-1)!)
+  const said = text(defined(messages.at(-1), "the last message"))
     .toLowerCase()
     .replace(/[.!?\s]+$/, "")
     .trim();

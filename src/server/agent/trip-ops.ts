@@ -30,6 +30,7 @@ import {
   type TripWithCity,
 } from "@/server/trips/trips";
 import { describeMiss, matchByName } from "./match";
+import { defined } from "@/lib/invariant";
 
 /**
  * What the agent's tools do (§3.3 C), as plain functions: every input is a name or a setting,
@@ -111,7 +112,7 @@ export async function setTrip(
 
   const { trip } = found;
   updateTripSettings(deps.db, trip.id, { days: input.days, pace: input.pace, interests });
-  const updated = getTrip(deps.db, trip.id)!;
+  const updated = defined(getTrip(deps.db, trip.id), "the updated trip");
   const summary = `${daysLabel(updated.trip.days)}, ${PACE_LABELS[updated.trip.pace].toLowerCase()} pace`;
   const replan =
     (updated.trip.days !== trip.days || updated.trip.pace !== trip.pace) &&
@@ -200,7 +201,10 @@ export function removePlace(
     const planned = plannedPlaces(deps, found, latest.data);
     const match = matchByName(planned, input.name);
     if (match.kind === "found") {
-      const next = applyItineraryEdit(latest.data, { type: "remove", placeId: match.item.id })!;
+      const next = defined(
+        applyItineraryEdit(latest.data, { type: "remove", placeId: match.item.id }),
+        "the edited itinerary",
+      );
       saveItinerary(deps.db, trip.id, next);
       return {
         reply: `Removed ${match.item.name} from the itinerary.`,

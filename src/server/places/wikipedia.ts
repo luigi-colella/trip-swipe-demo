@@ -149,7 +149,10 @@ function resolveTitle(
   redirects: Map<string, string>,
 ): string {
   let t = normalized.get(title) ?? title;
-  for (let hops = 0; hops < 3 && redirects.has(t); hops++) t = redirects.get(t)!;
+  for (let hops = 0, next = redirects.get(t); hops < 3 && next !== undefined; hops++) {
+    t = next;
+    next = redirects.get(t);
+  }
   return t;
 }
 

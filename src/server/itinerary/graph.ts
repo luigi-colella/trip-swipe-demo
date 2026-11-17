@@ -18,6 +18,7 @@ import {
 import type { Env } from "@/server/env-schema";
 import { buildDraftItinerary, type PlannerPlace } from "./fallback";
 import { validatePlan } from "./validate";
+import { defined } from "@/lib/invariant";
 
 /**
  * Workflow B — itinerary subgraph (§3.3 B):
@@ -137,9 +138,12 @@ export function buildPlannerGraph(deps: PlannerDeps) {
       const fakeDraft = {
         days: s.draft.days.map((d) => ({
           title: d.title,
-          ids: d.stops.map((x) => alias.get(x.placeId)!),
+          ids: d.stops.map((x) => defined(alias.get(x.placeId), "a place alias")),
         })),
-        excluded: s.draft.excluded.map((x) => ({ id: alias.get(x.placeId)!, reason: x.reason })),
+        excluded: s.draft.excluded.map((x) => ({
+          id: defined(alias.get(x.placeId), "a place alias"),
+          reason: x.reason,
+        })),
       };
       model = getChatModel("planner", deps.env, {
         fake:
@@ -228,7 +232,7 @@ export async function planItinerary(
     { runName: "itinerary_planner", tags: ["workflow-b"], metadata: { days: input.days } },
   );
   return {
-    data: state.result!,
+    data: defined(state.result, "the planner result"),
     attempts: state.attempts,
     errors: state.result?.source === "fallback" ? state.errors : [],
   };

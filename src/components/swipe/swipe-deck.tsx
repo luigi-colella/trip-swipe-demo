@@ -24,6 +24,7 @@ import {
   undoSwipeAction,
 } from "@/server/actions/trips";
 import { PlaceCardView } from "./place-card";
+import { defined } from "@/lib/invariant";
 
 /** Only the top cards live in the DOM; the next ones just get their photo preloaded. */
 const VISIBLE_CARDS = 3;
@@ -331,14 +332,14 @@ function DeckCard({
     const clamp = (v: number) => String(Math.max(0, Math.min(1, v / SWIPE_DISTANCE)));
     const up = -dy > Math.abs(dx);
     // Only the top card has stamps, and only the top card can be dragged or flung.
-    stamps.current.like!.style.setProperty("opacity", up ? "0" : clamp(dx));
-    stamps.current.skip!.style.setProperty("opacity", up ? "0" : clamp(-dx));
-    stamps.current.must!.style.setProperty("opacity", up ? clamp(-dy) : "0");
+    stamps.current.like?.style.setProperty("opacity", up ? "0" : clamp(dx));
+    stamps.current.skip?.style.setProperty("opacity", up ? "0" : clamp(-dx));
+    stamps.current.must?.style.setProperty("opacity", up ? clamp(-dy) : "0");
   }
 
   function fling(decision: SwipeDecision) {
     if (leaving.current) return;
-    const el = node.current!;
+    const el = defined(node.current, "the card element");
     leaving.current = true;
     if (prefersReducedMotion()) {
       onDecide(decision);

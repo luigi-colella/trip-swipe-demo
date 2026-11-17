@@ -21,6 +21,7 @@ import { detectPromptAttack, GUARDRAIL_REPLIES, redactPii, type GuardrailHit } f
 import { buildTripSnapshot } from "./snapshot";
 import { createAgentTools } from "./tools";
 import type { AgentDeps, AgentSession } from "./trip-ops";
+import { defined } from "@/lib/invariant";
 
 /**
  * Workflow C — the chat agent (§3.3 C): `createAgent` with the trip tools, the trip snapshot
@@ -175,7 +176,12 @@ export async function streamChatTurn(
         onFinish: async (state) => {
           release();
           // "values" is streamed, so the final state is always known here.
-          if (session.createdTripId) await seedThread(deps, session.createdTripId, state!.messages);
+          if (session.createdTripId)
+            await seedThread(
+              deps,
+              session.createdTripId,
+              defined(state, "the final chat state").messages,
+            );
         },
         onError: (err) => {
           release();

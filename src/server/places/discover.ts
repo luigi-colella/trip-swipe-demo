@@ -163,17 +163,17 @@ export async function discoverPlaces(
   );
 
   const now = deps.now?.() ?? new Date();
-  const rows = kept.map(({ candidate, page }) => {
-    const credit = page.image ? credits.get(page.image.fileName) : undefined;
-    return {
-      id: crypto.randomUUID(),
-      cityId: city.id,
-      ...candidate,
-      wikiTitle: page.title,
-      ...wikiFields(page, credit),
-      fetchedAt: now,
-    } satisfies typeof places.$inferInsert;
-  });
+  const rows = kept.map(
+    ({ candidate, page }) =>
+      ({
+        id: crypto.randomUUID(),
+        cityId: city.id,
+        ...candidate,
+        wikiTitle: page.title,
+        ...wikiFields(page, credits),
+        fetchedAt: now,
+      }) satisfies typeof places.$inferInsert,
+  );
   const added = deps.db.transaction((tx) =>
     rows.flatMap((row) => tx.insert(places).values(row).onConflictDoNothing().returning().all()),
   );
@@ -181,14 +181,16 @@ export async function discoverPlaces(
 }
 
 /** Wikipedia-derived columns; the photo is kept only with a known license (F9). */
-function wikiFields(page: WikiPage, credit: ImageCredit | undefined) {
+function wikiFields(page: WikiPage, credits: ReadonlyMap<string, ImageCredit>) {
+  const image = page.image;
+  const credit = image && credits.get(image.fileName);
   return {
     wikiUrl: page.url,
     extract: page.extract,
     lat: page.lat,
     lon: page.lon,
     popularity: page.popularity,
-    imageUrl: credit ? page.image!.thumbUrl : null,
+    imageUrl: image && credit ? image.thumbUrl : null,
     imageAuthor: credit?.author ?? null,
     imageLicense: credit?.license ?? null,
     imageLicenseUrl: credit?.licenseUrl ?? null,
@@ -214,9 +216,7 @@ export async function refreshStalePlaces(pool: readonly Place[], deps: HttpDeps)
     for (const place of stale) {
       const page = pages.get(place.wikiTitle);
       // Articles that disappeared keep their data; bumping fetchedAt avoids retrying every visit.
-      const fields = page
-        ? wikiFields(page, page.image ? credits.get(page.image.fileName) : undefined)
-        : {};
+      const fields = page ? wikiFields(page, credits) : {};
       tx.update(places)
         .set({ ...fields, fetchedAt: now })
         .where(eq(places.id, place.id))

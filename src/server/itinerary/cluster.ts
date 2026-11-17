@@ -151,14 +151,15 @@ export function orderRoute<T extends ClusterPlace>(group: readonly T[]): T[] {
   for (const start of group) {
     const route = [start];
     const left = new Set(group.filter((p) => p !== start));
+    let last = start;
     while (left.size) {
-      const last = route.at(-1)!;
-      let next: T | undefined;
-      for (const p of left) {
-        if (!next || estimateLeg(last, p).km < estimateLeg(last, next).km) next = p;
-      }
-      route.push(next!);
-      left.delete(next!);
+      // The first nearest place wins ties, as `reduce` keeps the earlier one.
+      const next = [...left].reduce((a, b) =>
+        estimateLeg(last, b).km < estimateLeg(last, a).km ? b : a,
+      );
+      route.push(next);
+      left.delete(next);
+      last = next;
     }
     const cost = routeKm(route);
     if (cost < bestCost - 1e-9) [best, bestCost] = [route, cost];

@@ -13,6 +13,7 @@ import {
 } from "@/lib/itinerary";
 import { formatVisitTime, humanizeSlug } from "@/lib/places";
 import { StopMenuButton } from "./stop-menu-button";
+import { defined } from "@/lib/invariant";
 
 const StopActionsMenu = lazy(() => import("./stop-actions-menu"));
 
@@ -80,7 +81,7 @@ export function DayTimeline({
             </li>
           );
         }
-        const place = places.get(item.placeId)!;
+        const place = defined(places.get(item.placeId), "a planned place");
         const tip = tips.get(item.placeId);
         const selected = item.placeId === selectedId;
         const first = item.number === 1;
