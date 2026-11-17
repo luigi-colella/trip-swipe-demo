@@ -84,6 +84,39 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
 - Next.js 16 may differ from older training data. Check the bundled docs in
   `node_modules/next/dist/docs/` before using unfamiliar APIs.
 
+## Defensive programming
+
+Write and review every change defensively: assume input is hostile and dependencies fail,
+validate at trust boundaries, fail safely and visibly.
+
+- **Validate at trust boundaries, trust types inside.** Boundaries: route handlers, Server
+  Actions (public endpoints: take `unknown`, parse with Zod), URL params, client-sent chat
+  history, LLM output, third-party responses (Photon, Wikipedia, Commons). Past the boundary,
+  rely on the types; do not repeat checks the types already guarantee (that is an impossible
+  branch, see Testing).
+- **Bound everything.** Maximum lengths and counts in schemas, timeouts on every outbound
+  request (`AbortSignal.timeout`), bounded retries, limits on loops over external data.
+- **Scope to the server-side trip.** Every read and write is checked against the trip bound on
+  the server: an ID from the client or the model (place, stop, itinerary) must belong to it.
+- **Fail closed, fail safely.** Return typed error results with a short user-facing message;
+  never leak stack traces, SQL or internal IDs; log the cause on the server. Unknown cases are
+  errors, not defaults (exhaustive `switch` with `never`).
+- **Expect dependencies to fail.** LLM output may be empty, malformed or off-task; HTTP may time
+  out or return garbage; the budget or a rate limit may be exhausted. Each has a deterministic
+  fallback or a clear error.
+- **Assume concurrency and stale state.** Double submits, two tabs, out-of-order or repeated
+  actions (undo with nothing to undo, generate without a shortlist): make writes idempotent or
+  reject them, and group related writes in one transaction.
+- **UI.** Disable controls while an action is pending, show every error, ignore responses that
+  arrive after the state moved on, render third-party and model text as text (no
+  `dangerouslySetInnerHTML`).
+- **No unchecked shortcuts.** No non-null assertions (`!`) or `as` casts on data that has not
+  been validated; no unhandled promises. ESLint enforces part of this in `src/`.
+- **Every guard is tested** with the input it rejects (malformed, out of bounds, foreign ID,
+  out of order, dependency failure).
+- **Reviews** check each changed boundary against this list and report missing guards as
+  findings.
+
 ## Testing
 
 - Unit tests: `tests/unit`. Integration tests (real SQLite in a temp dir): `tests/integration`.
@@ -92,7 +125,8 @@ Before declaring work done: `npm run lint && npm run typecheck && npm test` must
 - **Coverage stays at 100%** of `src/` (statements, branches, functions, lines; no exclusions,
   no `v8 ignore` comments). Every change to `src/` comes with the tests that keep it there,
   including edge cases: empty and boundary inputs, error and fallback paths, rejected or
-  stale input. Remove impossible branches instead of testing around them. A Claude Code Stop
+  stale input (see Defensive programming). Remove impossible branches instead of testing around
+  them. A Claude Code Stop
   hook (`.claude/settings.json` → `scripts/coverage-hook.mjs`) runs the coverage check when
   `src/` or the tests changed.
 - E2E also runs axe-core accessibility checks (`accessibility.spec.ts`), performance budgets
