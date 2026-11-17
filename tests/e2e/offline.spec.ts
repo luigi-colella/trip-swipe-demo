@@ -9,9 +9,28 @@ import { createRomeTrip, hydrated, likeEverything, planRomeTrip } from "./helper
 
 const CONNECTION_ERROR = "Couldn't reach the server. Check your connection and try again.";
 
-/** Goes offline once the page has loaded the code it fetches after loading (notifications). */
+/** Requests started and not finished yet, per page. */
+const inFlight = new WeakMap<Page, Set<unknown>>();
+
+test.beforeEach(({ page }) => {
+  const pending = new Set<unknown>();
+  inFlight.set(page, pending);
+  page.on("request", (request) => pending.add(request));
+  page.on("requestfinished", (request) => pending.delete(request));
+  page.on("requestfailed", (request) => pending.delete(request));
+});
+
+/**
+ * Goes offline once the page is quiet: the last swipe saved, the code fetched after loading
+ * (notifications) arrived. `waitForLoadState("networkidle")` is no help here: it resolves at
+ * once when the page was idle earlier, even with a request in flight now, and going offline
+ * then fails that request (a swipe the test expects saved is rolled back).
+ */
 async function goOffline(page: Page) {
-  await page.waitForLoadState("networkidle");
+  const pending = inFlight.get(page)!;
+  for (let quiet = 0; quiet < 5; quiet = pending.size === 0 ? quiet + 1 : 0) {
+    await page.waitForTimeout(100);
+  }
   await page.context().setOffline(true);
 }
 
