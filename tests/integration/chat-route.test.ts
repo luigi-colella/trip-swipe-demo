@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "@/app/api/chat/route";
+import { MAX_CHAT_BODY_CHARS, POST } from "@/app/api/chat/route";
 import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
 import { llmBudget } from "@/server/ai/runtime";
 import { addToWindow, DAY_MS, HOUR_MS } from "@/server/limits/rate-limits";
@@ -67,6 +67,26 @@ describe("POST /api/chat", () => {
     expect([res.status, await res.text()]).toEqual([400, "Message too long."]);
     res = await post({ tripId: crypto.randomUUID(), text: "hi" });
     expect([res.status, await res.text()]).toEqual([404, "Trip not found."]);
+  });
+
+  it("refuses oversized bodies before parsing them", async () => {
+    // Regression: a 5 MB body was read and parsed in full (the schema only bounds the fields).
+    let res = await post({ text: "hi", pad: "x".repeat(MAX_CHAT_BODY_CHARS) });
+    expect([res.status, await res.text()]).toEqual([413, "Request too large."]);
+    res = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "Content-Length": String(MAX_CHAT_BODY_CHARS * 4 + 1) },
+        body: "{}",
+      }),
+    );
+    expect([res.status, await res.text()]).toEqual([413, "Request too large."]);
+    // The largest valid request still fits, every character escaped.
+    const history = Array.from({ length: 10 }, () => ({ role: "user", text: "".repeat(2000) }));
+    res = await post({ text: "hello", history });
+    expect(JSON.stringify({ text: "hello", history }).length).toBeLessThan(MAX_CHAT_BODY_CHARS);
+    expect(res.status).toBe(200);
+    await res.text();
   });
 
   it("answers 409 while the trip's previous turn is running", async () => {
