@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SwipeDeck } from "@/components/swipe/swipe-deck";
-import { AiBusyState } from "@/components/trip/error-state";
+import { AiBusyState, NoPlacesState } from "@/components/trip/error-state";
 import { DeckSkeleton, TripHeaderSkeleton } from "@/components/trip/skeletons";
 import { TripHeader } from "@/components/trip/trip-header";
 import { deckVersion } from "@/lib/deck";
 import { aiBusyText, isAiBusyError } from "@/server/ai/budget";
+import { offlineModeHint } from "@/server/ai/fake";
 import { llmBudget } from "@/server/ai/runtime";
 import { db } from "@/server/db/client";
-import { findPlacesForTrip, type Place } from "@/server/places/discover";
+import { findPlacesForTrip, PlaceDiscoveryError, type Place } from "@/server/places/discover";
 import { discoveryDeps } from "@/server/places/deps";
 import { loadTripOr404 } from "@/server/trips/load";
 import { buildDeck, getSwipeHistory, type TripWithCity } from "@/server/trips/trips";
@@ -60,6 +61,18 @@ async function Deck({ found: { trip, city } }: { found: TripWithCity }) {
     pool = await findPlacesForTrip(city, trip.interests, discoveryDeps);
   } catch (err) {
     if (isAiBusyError(err)) return <AiBusyState message={aiBusyText(llmBudget)} />;
+    // Rendered, not thrown: retrying never helps, and production builds hide thrown messages.
+    if (err instanceof PlaceDiscoveryError) {
+      switch (err.code) {
+        case "no-places":
+          return (
+            <NoPlacesState
+              city={city.name}
+              offlineHint={offlineModeHint(discoveryDeps.env.LLM_MODE)}
+            />
+          );
+      }
+    }
     throw err;
   }
   const { deck, history } = buildDeck(pool, getSwipeHistory(db, trip.id), trip.interests);

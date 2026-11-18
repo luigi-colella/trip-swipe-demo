@@ -1,7 +1,7 @@
 /**
- * Offline fixtures for the E2E run: cached Photon answers for "rome" and "paris" and a ready
- * Rome place pool (Paris has none), so the production server never calls Photon, Wikipedia or
- * an LLM during the tests.
+ * Offline fixtures for the E2E run: cached Photon answers for "rome", "paris" and "siracusa"
+ * and a ready Rome place pool (the others have none), so the production server never calls
+ * Photon, Wikipedia or an LLM during the tests.
  * Idempotent; refreshes timestamps so nothing is ever considered stale.
  * Usage (from playwright.config.ts): node --import tsx tests/e2e/seed.ts
  */
@@ -57,6 +57,26 @@ export const PHOTON_PARIS = {
 };
 
 /**
+ * A city the fake LLM knows no attractions for: discovery finds nothing, offline, so the swipe
+ * step shows the "no attractions" state.
+ */
+export const PHOTON_SIRACUSA = {
+  features: [
+    {
+      geometry: { coordinates: [15.2866, 37.0755] },
+      properties: {
+        osm_type: "R",
+        osm_id: 39223,
+        name: "Siracusa",
+        state: "Sicily",
+        country: "Italy",
+        countrycode: "IT",
+      },
+    },
+  ],
+};
+
+/**
  * [name, category, tags, visit minutes, popularity, lat, lon]; real coordinates so that the
  * itinerary clusters, legs and map are realistic. No photos (the browser stays offline too).
  */
@@ -82,6 +102,7 @@ function main() {
 
   writeHttpCache(db, "photon:rome", PHOTON_ROME, 365 * DAY_MS, now);
   writeHttpCache(db, "photon:paris", PHOTON_PARIS, 365 * DAY_MS, now);
+  writeHttpCache(db, "photon:siracusa", PHOTON_SIRACUSA, 365 * DAY_MS, now);
   const rome = upsertCity(db, parsePhotonResponse(PHOTON_ROME)[0]);
 
   for (const [name, category, tags, visitMinutes, popularity, lat, lon] of ROME_PLACES) {

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   chat,
   createRomeTrip,
+  createSiracusaTrip,
   hydrated,
   likeEverything,
   openChat,
@@ -51,6 +52,11 @@ test("swipe deck when every place was seen", async ({ page }) => {
   await likeEverything(page);
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   await snap(page, "swipe-done");
+});
+
+test("swipe step for a city without attractions", async ({ page }) => {
+  await createSiracusaTrip(page);
+  await snap(page, "swipe-no-places");
 });
 
 test("review", async ({ page }) => {

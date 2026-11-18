@@ -1,3 +1,4 @@
+import type { Env } from "@/server/env-schema";
 import type { DiscoveryOutput, PlannerOutput } from "./prompts";
 
 /**
@@ -212,6 +213,21 @@ const DISCOVERY_FIXTURES: Record<string, A[]> = {
     ),
   ],
 };
+
+/** Display names of the cities with built-in attractions in LLM_MODE=fake ("Rome", "Paris"). */
+export const FAKE_DISCOVERY_CITIES: readonly string[] = Object.keys(DISCOVERY_FIXTURES).map((key) =>
+  key.replace(/(?:^|\s)\S/g, (c) => c.toUpperCase()),
+);
+
+const OFFLINE_MODE_HINT =
+  `Offline demo mode (LLM_MODE=fake): only ${new Intl.ListFormat("en", { type: "conjunction" }).format(FAKE_DISCOVERY_CITIES)} ` +
+  "have built-in attractions, plus cities already saved in your database. " +
+  "Set LLM_MODE=live in .env.local to explore any city.";
+
+/** Why most cities have no attractions offline, and how to switch; none in live mode. */
+export function offlineModeHint(mode: Env["LLM_MODE"]): string | undefined {
+  return mode === "fake" ? OFFLINE_MODE_HINT : undefined;
+}
 
 export function fakeDiscoveryResponse(cityName: string, exclude: readonly string[] = []): string {
   const skip = new Set(exclude);

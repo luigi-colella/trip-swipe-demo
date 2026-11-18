@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { hydrated, openChat, planRomeTrip } from "./helpers";
+import { createSiracusaTrip, hydrated, openChat, planRomeTrip } from "./helpers";
 
 /**
  * Visual QA sizes (§2): every step fits 320×568, 360×640, 390×844, 768 and 1280+ without horizontal
@@ -48,5 +48,19 @@ test("every step fits each QA size", async ({ page, isMobile }) => {
     await openChat(page, size.width < 1024);
     await hydrated(page.getByRole("textbox", { name: "Message" }));
     await expectNoHorizontalOverflow(page, `chat at ${size.width}×${size.height}`);
+  }
+});
+
+test("the no-attractions state fits each QA size", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Sizes are set explicitly; one project is enough");
+  await createSiracusaTrip(page);
+  const path = new URL(page.url()).pathname;
+  const heading = page.getByRole("heading", { name: "No attractions found for Siracusa" });
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(path);
+    await heading.waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    await expectNoHorizontalOverflow(page, `no attractions at ${size.width}×${size.height}`);
   }
 });

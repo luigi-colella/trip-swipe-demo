@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   chat,
   createRomeTrip,
+  createSiracusaTrip,
   hydrated,
   likeEverything,
   openChat,
@@ -44,6 +45,11 @@ test("swipe and review", async ({ page }) => {
   await expectAccessible(page);
   await page.getByRole("button", { name: /Review shortlist/ }).click();
   await expect(page.getByRole("list", { name: "Shortlist" })).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("a city without attractions", async ({ page }) => {
+  await createSiracusaTrip(page);
   await expectAccessible(page);
 });
 
