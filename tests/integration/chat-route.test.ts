@@ -99,6 +99,27 @@ describe("POST /api/chat", () => {
     await first.text();
   });
 
+  it("ends a turn quietly when the client goes away mid-stream", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const controller = new AbortController();
+    const res = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ tripId: trip.id, text: "hello" }),
+        signal: controller.signal,
+      }),
+    );
+    expect(res.status).toBe(200);
+    // What Next.js does when the browser closes the request (Stop, Esc, closed tab).
+    controller.abort(Object.assign(new Error(""), { name: "ResponseAborted" }));
+    await res.text();
+    expect(error).not.toHaveBeenCalled();
+    const next = await post({ tripId: trip.id, text: "hello" });
+    expect([next.status, await next.text()]).toEqual([200, expect.stringContaining("I can start")]);
+    error.mockRestore();
+  });
+
   it("answers 503 when the turn cannot start", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     // The client went away before the run started.

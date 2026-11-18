@@ -161,6 +161,11 @@ export async function streamChatTurn(
   const release = () => {
     if (threadId) running.delete(threadId);
   };
+  // The client went away (Stop, Esc, closed tab): a normal end of the turn, not a failure.
+  const aborted = () => {
+    release();
+    console.info("Chat turn aborted by the client");
+  };
   let failure: unknown;
   try {
     const stream = await agent.stream(
@@ -185,17 +190,35 @@ export async function streamChatTurn(
             );
         },
         onError: (err) => {
+          if (isClientAbort(err, turn.signal)) return aborted();
           release();
           failure = err;
           if (!isAiBusyError(err)) console.error("Chat turn failed", err);
         },
-        onAbort: release,
+        onAbort: aborted,
       }),
     );
   } catch (err) {
     release();
     throw err;
   }
+}
+
+/** Error names of a request the client cancelled: the platform's and Next.js's. */
+const ABORT_ERRORS = new Set(["AbortError", "ResponseAborted"]);
+
+/**
+ * True when a turn ended because the client went away: its signal is aborted, or the error
+ * (directly or as a cause) is an abort. Next.js aborts `request.signal` with a
+ * `ResponseAborted` error, which LangGraph rethrows as it is, so the AI SDK adapter reports it
+ * through `onError` rather than `onAbort`.
+ */
+export function isClientAbort(err: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  for (let e = err, depth = 0; e instanceof Error && depth < 5; e = e.cause, depth++) {
+    if (ABORT_ERRORS.has(e.name)) return true;
+  }
+  return false;
 }
 
 /** What the user is told when a turn fails: "AI is busy" or a generic message. */
