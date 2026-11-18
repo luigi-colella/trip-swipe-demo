@@ -216,6 +216,10 @@ describe("ItineraryView quick actions (F4)", () => {
       .map((b) => b.textContent!.replace(/^Stop \d+: /, ""));
 
   it("moves stops earlier and later, re-timing the day instantly", async () => {
+    // Keep the save pending: once it settles, the optimistic order gives way to the `data`
+    // prop, which this test never refreshes (a slow runner got there before the assertion).
+    let resolve!: (r: { ok: true }) => void;
+    vi.mocked(editItineraryAction).mockReturnValueOnce(new Promise((r) => (resolve = r)));
     renderView();
     await userEvent.click(await menuButton("Colosseum"));
     expect(
@@ -228,6 +232,7 @@ describe("ItineraryView quick actions (F4)", () => {
       placeId: colosseum.id,
       direction: "down",
     });
+    await act(async () => resolve({ ok: true }));
     await action("Vatican Museums", "Move earlier");
     expect(editItineraryAction).toHaveBeenLastCalledWith(TRIP_ID, {
       type: "move",
