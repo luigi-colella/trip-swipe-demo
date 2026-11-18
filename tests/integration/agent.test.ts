@@ -8,6 +8,7 @@ import {
   CHAT_ERROR_TEXT,
   ChatBusyError,
   chatErrorText,
+  isClientAbort,
   streamChatTurn,
   type ChatDeps,
 } from "@/server/agent/agent";
@@ -134,7 +135,10 @@ beforeEach(() => {
     planner: { env },
   };
 });
-afterEach(() => t.cleanup());
+afterEach(() => {
+  vi.restoreAllMocks();
+  t.cleanup();
+});
 
 const tripSession = (): AgentSession => ({ tripId: trip.id });
 const like = (...names: string[]) => names.forEach((n) => recordSwipe(t.db, trip, ids[n], "like"));
@@ -567,9 +571,18 @@ describe("streamChatTurn", () => {
   });
 
   it("hides provider errors and frees the trip for the next turn", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const down = { ...deps, fake: () => new DownModel() as BaseChatModel };
     const chunks = await collect(await streamChatTurn(down, { tripId: trip.id, text: "hello" }));
     expect(chunks).toContainEqual({ type: "error", errorText: CHAT_ERROR_TEXT });
+    // A real failure is still logged, even with a client signal that is not aborted.
+    expect(error).toHaveBeenCalledWith("Chat turn failed", expect.any(Error));
+    error.mockClear();
+    const live = new AbortController();
+    await collect(
+      await streamChatTurn(down, { tripId: trip.id, text: "hello", signal: live.signal }),
+    );
+    expect(error).toHaveBeenCalledWith("Chat turn failed", expect.any(Error));
     expect(JSON.stringify(chunks)).not.toContain("secret");
     const home = await collect(await streamChatTurn(down, { text: "hello" }));
     expect(home).toContainEqual({ type: "error", errorText: CHAT_ERROR_TEXT });
@@ -579,12 +592,13 @@ describe("streamChatTurn", () => {
   });
 
   it("says the AI is busy when the daily budget is used up", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const budget = new LlmBudget(t.db, 0);
     const chunks = await collect(
       await streamChatTurn({ ...deps, budget }, { tripId: trip.id, text: "hello" }),
     );
     expect(chunks).toContainEqual({ type: "error", errorText: AI_PAUSED_MESSAGE });
+    expect(error).not.toHaveBeenCalledWith("Chat turn failed", expect.anything());
   });
 
   it("tells a busy provider apart from other failures", () => {
@@ -670,5 +684,47 @@ describe("streamChatTurn", () => {
     await expect(
       streamChatTurn(deps, { tripId: trip.id, text: "hello" }).then(collect),
     ).resolves.toBeTruthy();
+  });
+
+  it("does not log a turn the client aborted as a failure", async () => {
+    // Regression: Next.js aborts `request.signal` with a `ResponseAborted` error, which
+    // LangGraph rethrows; it was logged as "Chat turn failed".
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    for (const reason of [
+      Object.assign(new Error(""), { name: "ResponseAborted" }),
+      undefined, // the platform's AbortError
+    ]) {
+      const controller = new AbortController();
+      const stream = await streamChatTurn(deps, {
+        tripId: trip.id,
+        text: "hello",
+        signal: controller.signal,
+      });
+      controller.abort(reason);
+      await collect(stream);
+      // The trip is free again: the next turn runs.
+      expect(
+        textOf(await collect(await streamChatTurn(deps, { tripId: trip.id, text: "hello" }))),
+      ).toContain("I can start a trip");
+    }
+    expect(error).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(info).toHaveBeenCalledWith("Chat turn aborted by the client");
+  });
+
+  it("tells a client abort apart from other failures", () => {
+    const aborted = Object.assign(new Error(""), { name: "ResponseAborted" });
+    expect(isClientAbort(new Error("boom"), AbortSignal.abort())).toBe(true);
+    expect(isClientAbort(aborted)).toBe(true);
+    expect(isClientAbort(new Error("wrapped", { cause: new DOMException("", "AbortError") }))).toBe(
+      true,
+    );
+    expect(isClientAbort(new Error("boom"), new AbortController().signal)).toBe(false);
+    expect(isClientAbort("ResponseAborted")).toBe(false);
+    // The cause chain is walked to a bounded depth only.
+    let deep: Error = aborted;
+    for (let i = 0; i < 5; i++) deep = new Error("wrapped", { cause: deep });
+    expect(isClientAbort(deep)).toBe(false);
   });
 });

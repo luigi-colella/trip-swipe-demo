@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { FakeListChatModel } from "@langchain/core/utils/testing";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { parseEnv } from "@/server/env-schema";
-import { plannerMessages, plannerRepairMessage } from "@/server/ai/prompts";
+import { plannerMessages, plannerRepairMessage, type PlannerOutput } from "@/server/ai/prompts";
 import {
   clusterPlaces,
   groupMinutes,
@@ -198,5 +199,97 @@ describe("planner graph edge cases", () => {
     expect(result.data.source).toBe("ai");
     expect(result.data.excluded.length).toBeGreaterThan(0);
     expect(result.data.excluded[0].reason).toBe(didNotFitReason(1, "relaxed"));
+  });
+});
+
+describe("planner rejection logging", () => {
+  const env = parseEnv({ LLM_MODE: "fake" });
+  const input = {
+    city: { name: "Rome", country: "Italy" },
+    days: 1,
+    pace: "relaxed" as const,
+    // Aliases by popularity: P1 Colosseum, P2 Pantheon.
+    places: romePlaces(["Colosseum", "Pantheon"]),
+    instructions: "SECRET-WISH avoid stairs",
+  };
+  const valid: PlannerOutput = {
+    days: [
+      {
+        title: "Ancient Rome",
+        stops: [
+          { id: "P1", tip: "" },
+          { id: "P2", tip: "" },
+        ],
+      },
+    ],
+    excluded: [],
+  };
+  const duplicate: PlannerOutput = {
+    days: [{ title: "RAW-MODEL-TITLE", stops: [{ id: "P1", tip: "RAW-MODEL-TIP" }] }],
+    excluded: [{ id: "P1", reason: "Duplicate" }],
+  };
+  const scripted =
+    (...responses: string[]) =>
+    () =>
+      new FakeListChatModel({ responses });
+  let warn: MockInstance<typeof console.warn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  const logged = () => warn.mock.calls.map((args) => args.join(" "));
+
+  it("logs nothing when the first answer is accepted", async () => {
+    const result = await planItinerary(input, {
+      env,
+      fake: scripted(JSON.stringify(valid)),
+    });
+    expect(result).toMatchObject({ attempts: 1, data: { source: "ai" } });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("logs each rejected answer with its attempt number and the rule errors", async () => {
+    const result = await planItinerary(input, {
+      env,
+      fake: scripted("not json", JSON.stringify(duplicate), JSON.stringify(valid)),
+    });
+    expect(result).toMatchObject({ attempts: 3, data: { source: "ai" } });
+    expect(logged()).toEqual([
+      "Itinerary plan rejected (attempt 1/3): " +
+        "Your reply was not valid JSON matching the required structure.",
+      "Itinerary plan rejected (attempt 2/3): " +
+        "P1 (Colosseum) is used more than once.; " +
+        'P2 (Pantheon) is missing: put it in a day or in "excluded".',
+    ]);
+    // Neither the raw model output nor the traveller's wishes reach the log.
+    for (const line of logged()) {
+      expect(line).not.toMatch(/RAW-MODEL|SECRET-WISH|not json/);
+    }
+  });
+
+  it("bounds the logged errors and notes the fallback after the last attempt", async () => {
+    const unknown = (n: number) => ({ id: `UNKNOWN-ID-${n}`, tip: "" });
+    const flood: PlannerOutput = {
+      days: [{ title: "Too many", stops: Array.from({ length: 40 }, (_, i) => unknown(i)) }],
+      excluded: [],
+    };
+    const result = await planItinerary(input, { env, fake: scripted(JSON.stringify(flood)) });
+    expect(result).toMatchObject({ attempts: 3, data: { source: "fallback" } });
+    const lines = logged();
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatch(/^Itinerary plan rejected \(attempt 1\/3\): Unknown place ID "UNK/);
+    expect(lines[1]).toMatch(/^Itinerary plan rejected \(attempt 2\/3\): /);
+    expect(lines[2]).toMatch(/^Itinerary plan rejected \(attempt 3\/3\): /);
+    for (const line of lines.slice(0, 3)) {
+      expect(line.length).toBeLessThanOrEqual(
+        "Itinerary plan rejected (attempt 1/3): ".length + 1000,
+      );
+      expect(line.endsWith("…")).toBe(true);
+    }
+    expect(lines[3]).toBe(
+      "Itinerary planner gave up after 3 rejected attempts, using the deterministic plan",
+    );
   });
 });

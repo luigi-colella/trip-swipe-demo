@@ -3,7 +3,13 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { AI_BUSY_MESSAGE, AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
-import { AiBusyError, aiBusyText, isAiBusyError, LlmBudget } from "@/server/ai/budget";
+import {
+  AiBusyError,
+  aiBusyText,
+  budgetedFetch,
+  isAiBusyError,
+  LlmBudget,
+} from "@/server/ai/budget";
 import { getChatModel, ROLE_SETTINGS } from "@/server/ai/models";
 import { rateLimits } from "@/server/db/schema";
 import { parseEnv } from "@/server/env-schema";
@@ -31,7 +37,11 @@ let t: ReturnType<typeof createTestDatabase>;
 beforeEach(() => {
   t = createTestDatabase();
 });
-afterEach(() => t.cleanup());
+afterEach(() => {
+  t.cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const at = (iso: string) => new Date(iso);
 
@@ -237,12 +247,16 @@ describe("model layer with a budget", () => {
         ),
       ),
     );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const budget = new LlmBudget(t.db, 45);
     const err = await getChatModel("agent", liveEnv, { budget })
       .invoke("hello")
       .catch((e: unknown) => e);
     expect(isAiBusyError(err)).toBe(true);
     expect(budget.exhausted()).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/^LLM request failed: 429 \(daily quota\) after \d+ms$/),
+    );
   });
 
   it("only waits out the provider's per-minute limit", async () => {
@@ -254,12 +268,16 @@ describe("model layer with a budget", () => {
         ),
       ),
     );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const budget = new LlmBudget(t.db, 45);
     const err = await getChatModel("agent", liveEnv, { budget })
       .invoke("hello")
       .catch((e: unknown) => e);
     expect(isAiBusyError(err)).toBe(true);
     expect(budget.exhausted()).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/^LLM request failed: 429 \(rate limit\) after \d+ms$/),
+    );
   });
 
   it("bounds every live request with a per-role timeout", () => {
@@ -279,5 +297,101 @@ describe("model layer with a budget", () => {
     expect(budget.used()).toBe(0);
     budget.markExhausted();
     await expect(model.invoke("hello")).rejects.toBeInstanceOf(AiBusyError);
+  });
+});
+
+describe("budgeted provider fetch", () => {
+  const URL = "https://openrouter.ai/api/v1/chat/completions";
+
+  function setup(respond: (init?: RequestInit) => Promise<Response>) {
+    const stub = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => respond(init));
+    vi.stubGlobal("fetch", stub);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const budget = new LlmBudget(t.db, 45);
+    return { stub, warn, info, budget, fetch: budgetedFetch(budget) };
+  }
+
+  it("counts a successful request and logs nothing", async () => {
+    const { stub, warn, info, budget, fetch } = setup(async () => new Response("{}"));
+    const init = { method: "POST", body: "{}" };
+    expect((await fetch(URL, init)).status).toBe(200);
+    expect(stub).toHaveBeenCalledWith(URL, init);
+    expect(budget.used()).toBe(1);
+    expect(warn).not.toHaveBeenCalled();
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it("logs a server error with its status and duration only", async () => {
+    const { warn, budget, fetch } = setup(
+      async () => new Response("secret prompt echo", { status: 500 }),
+    );
+    expect((await fetch(URL)).status).toBe(500);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^LLM request failed: 500 after \d+ms$/),
+    );
+    expect(budget.exhausted()).toBe(false);
+  });
+
+  it("logs the provider's daily quota and stops for the day, leaving the body readable", async () => {
+    const { warn, budget, fetch } = setup(
+      async () => new Response("Rate limit exceeded: free-models-per-day", { status: 429 }),
+    );
+    const response = await fetch(URL);
+    expect(await response.text()).toContain("per-day");
+    expect(budget.exhausted()).toBe(true);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^LLM request failed: 429 \(daily quota\) after \d+ms$/),
+    );
+  });
+
+  it("logs a per-minute limit without stopping for the day", async () => {
+    const { warn, budget, fetch } = setup(
+      async () => new Response("Rate limit exceeded: free-models-per-min", { status: 429 }),
+    );
+    await fetch(URL);
+    expect(budget.exhausted()).toBe(false);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^LLM request failed: 429 \(rate limit\) after \d+ms$/),
+    );
+  });
+
+  it("logs a network error and rethrows it unchanged", async () => {
+    const error = new TypeError("fetch failed");
+    const { warn, info, budget, fetch } = setup(() => Promise.reject(error));
+    await expect(fetch(URL)).rejects.toBe(error);
+    expect(budget.used()).toBe(1);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^LLM request failed: TypeError: fetch failed after \d+ms$/),
+    );
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it("bounds the logged error and tolerates non-Error throws", async () => {
+    const { warn, fetch } = setup(() => Promise.reject(new Error("x".repeat(500))));
+    await expect(fetch(URL)).rejects.toThrow();
+    const logged = String(warn.mock.calls[0]?.[0]);
+    expect(logged.length).toBeLessThan(260);
+
+    vi.stubGlobal("fetch", () => Promise.reject("boom"));
+    await expect(fetch(URL)).rejects.toBe("boom");
+    expect(warn).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^LLM request failed: unknown error after \d+ms$/),
+    );
+  });
+
+  it("does not log an aborted request (timeout or cancel) as a failure", async () => {
+    const controller = new AbortController();
+    const { warn, info, fetch } = setup((init) => {
+      controller.abort();
+      return Promise.reject(init?.signal?.reason);
+    });
+    await expect(fetch(URL, { signal: controller.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(warn).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^LLM request aborted after \d+ms \(timeout or cancelled\)$/),
+    );
   });
 });
