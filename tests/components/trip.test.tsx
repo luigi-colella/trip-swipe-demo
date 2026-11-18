@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ErrorState } from "@/components/trip/error-state";
+import { ErrorState, NoPlacesState } from "@/components/trip/error-state";
 import { DeckSkeleton, ListSkeleton, TripHeaderSkeleton } from "@/components/trip/skeletons";
 import { TripHeader } from "@/components/trip/trip-header";
 
@@ -78,6 +78,28 @@ describe("ErrorState", () => {
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("link", { name: "New trip" }).getAttribute("href")).toBe("/");
+  });
+});
+
+describe("NoPlacesState", () => {
+  it("offers another city and no retry, with the offline hint only when given", () => {
+    const { rerender } = render(<NoPlacesState city="Siracusa" offlineHint="Offline hint." />);
+    const alert = screen.getByRole("alert");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "No attractions found for Siracusa" }),
+    ).toBeTruthy();
+    expect(alert.textContent).toContain(
+      "We couldn't find attractions we can verify for this city. Try another city, or a larger one nearby.",
+    );
+    expect(screen.getByText("Offline hint.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Choose another city" }).getAttribute("href")).toBe(
+      "/",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+
+    rerender(<NoPlacesState city="Siracusa" />);
+    expect(screen.queryByText("Offline hint.")).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });
 

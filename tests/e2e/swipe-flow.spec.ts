@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { collectErrors, hydrated } from "./helpers";
+import { collectErrors, createSiracusaTrip, hydrated } from "./helpers";
 
 /** Setup → Swipe → Review on the seeded Rome pool (tests/e2e/seed.ts), fully offline. */
 
@@ -149,6 +149,21 @@ test("undo right after a swipe lands keeps the deck and the saved swipes in sync
   await page.reload();
   await hydrated(page.getByRole("button", { name: "Undo" }));
   expect(await counters()).toEqual(shown);
+});
+
+test("a city without attractions says so and leads back to the setup", async ({ page }) => {
+  const errors = collectErrors(page);
+  await createSiracusaTrip(page);
+  await expect(page).toHaveURL(/\/trip\/[0-9a-f-]{36}\/swipe$/);
+  // The E2E server runs with LLM_MODE=fake: the hint explains why.
+  await expect(
+    page.getByText(/^Offline demo mode \(LLM_MODE=fake\): only Rome and Paris have/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Choose another city" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("heading", { level: 1, name: "Plan a city trip" })).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test("an unknown trip shows the not-found page with a 404 status", async ({ page }) => {

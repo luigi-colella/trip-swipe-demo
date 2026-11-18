@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Hourglass, TriangleAlert } from "lucide-react";
+import { Hourglass, MapPinOff, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AI_PAUSED_TITLE } from "@/lib/ai-busy";
 
@@ -11,12 +11,13 @@ function StatePanel({
   icon,
   title,
   message,
-  retry,
+  children,
 }: {
   icon: ReactNode;
   title: string;
   message: string;
-  retry: () => void;
+  /** Extra text under the message, then the actions. */
+  children: ReactNode;
 }) {
   return (
     <div
@@ -28,12 +29,19 @@ function StatePanel({
         <h1 className="text-lg font-semibold">{title}</h1>
         <p className="max-w-sm text-sm text-muted-foreground">{message}</p>
       </div>
-      <div className="flex gap-2">
-        <Button onClick={() => retry()}>Try again</Button>
-        <Button variant="outline" asChild>
-          <Link href="/">New trip</Link>
-        </Button>
-      </div>
+      {children}
+    </div>
+  );
+}
+
+/** "Try again" plus a way out: for failures that may pass. */
+function RetryActions({ retry }: { retry: () => void }) {
+  return (
+    <div className="flex gap-2">
+      <Button onClick={() => retry()}>Try again</Button>
+      <Button variant="outline" asChild>
+        <Link href="/">New trip</Link>
+      </Button>
     </div>
   );
 }
@@ -58,8 +66,9 @@ export function ErrorState({
       icon={<TriangleAlert className="size-8 text-amber-500" aria-hidden />}
       title={title}
       message={message}
-      retry={retry}
-    />
+    >
+      <RetryActions retry={retry} />
+    </StatePanel>
   );
 }
 
@@ -71,7 +80,27 @@ export function AiBusyState({ message }: { message: string }) {
       icon={<Hourglass className="size-8 text-amber-500" aria-hidden />}
       title={AI_PAUSED_TITLE}
       message={message}
-      retry={() => router.refresh()}
-    />
+    >
+      <RetryActions retry={() => router.refresh()} />
+    </StatePanel>
+  );
+}
+
+/**
+ * A city where discovery found nothing verifiable (F2): retrying would not help, so the only
+ * action is another city. `offlineHint` explains LLM_MODE=fake (decided on the server).
+ */
+export function NoPlacesState({ city, offlineHint }: { city: string; offlineHint?: string }) {
+  return (
+    <StatePanel
+      icon={<MapPinOff className="size-8 text-amber-500" aria-hidden />}
+      title={`No attractions found for ${city}`}
+      message="We couldn't find attractions we can verify for this city. Try another city, or a larger one nearby."
+    >
+      {offlineHint && <p className="max-w-sm text-sm text-muted-foreground">{offlineHint}</p>}
+      <Button asChild>
+        <Link href="/">Choose another city</Link>
+      </Button>
+    </StatePanel>
   );
 }

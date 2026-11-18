@@ -13,6 +13,7 @@ import SwipeError from "@/app/trip/[id]/swipe/error";
 import SwipePage from "@/app/trip/[id]/swipe/page";
 import { AiBusyBanner } from "@/components/ai-busy-banner";
 import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
+import { offlineModeHint } from "@/server/ai/fake";
 import { llmBudget } from "@/server/ai/runtime";
 import { db, sqlite } from "@/server/db/client";
 import { places } from "@/server/db/schema";
@@ -45,6 +46,16 @@ vi.mock("next/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/server")>()),
   connection: async () => {},
 }));
+/** Set to make place discovery fail with something other than "no places". */
+const discovery = vi.hoisted(() => ({ error: undefined as Error | undefined }));
+vi.mock("@/server/places/discover", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/server/places/discover")>();
+  return {
+    ...original,
+    findPlacesForTrip: (...args: Parameters<typeof original.findPlacesForTrip>) =>
+      discovery.error ? Promise.reject(discovery.error) : original.findPlacesForTrip(...args),
+  };
+});
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "font-geist-sans" }),
   Geist_Mono: () => ({ variable: "font-geist-mono" }),
@@ -66,6 +77,7 @@ const ROME = {
 beforeEach(() => {
   resetDatabase(sqlite);
   router.refresh.mockClear();
+  discovery.error = undefined;
   const rome = upsertCity(db, ROME);
   placeIds = (
     [
@@ -189,10 +201,23 @@ describe("/trip/[id]/swipe", () => {
     expect(router.refresh).toHaveBeenCalled();
   });
 
-  it("lets other discovery failures reach the error boundary", async () => {
+  it("explains a city without attractions, with the offline hint and no retry", async () => {
     const atlantis = upsertCity(db, { ...ROME, osmRef: "R1", name: "Atlantis", state: null });
     const id = createTrip(db, { cityId: atlantis.id, days: 1, pace: "relaxed", interests: [] }).id;
-    await expect(page(SwipePage, id)).rejects.toThrow(/No verifiable attractions/);
+    await page(SwipePage, id);
+    expect(screen.getByRole("heading", { name: "No attractions found for Atlantis" })).toBeTruthy();
+    expect(screen.getByText(offlineModeHint("fake") ?? "")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Choose another city" }).getAttribute("href")).toBe(
+      "/",
+    );
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("lets other discovery failures reach the error boundary", async () => {
+    discovery.error = new Error("Wikipedia is down");
+    const atlantis = upsertCity(db, { ...ROME, osmRef: "R1", name: "Atlantis", state: null });
+    const id = createTrip(db, { cityId: atlantis.id, days: 1, pace: "relaxed", interests: [] }).id;
+    await expect(page(SwipePage, id)).rejects.toThrow("Wikipedia is down");
   });
 });
 

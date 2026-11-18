@@ -48,6 +48,19 @@ export async function createRomeTrip(page: Page) {
   await hydrated(page.getByRole("button", { name: "Like", exact: true }));
 }
 
+/** Setup → Swipe for Siracusa: the fake LLM knows no attractions there (tests/e2e/seed.ts). */
+export async function createSiracusaTrip(page: Page) {
+  await page.goto("/");
+  await hydrated(page.getByRole("combobox", { name: "City" }));
+  await page.getByRole("combobox", { name: "City" }).fill("Siracusa");
+  await page.getByRole("option", { name: /Siracusa, Sicily, Italy/ }).click();
+  await page.getByRole("button", { name: "Start swiping" }).click();
+  await expect(
+    page.getByRole("heading", { name: "No attractions found for Siracusa" }),
+  ).toBeVisible();
+  await hydrated(page.getByRole("link", { name: "Choose another city" }));
+}
+
 /** Swipe: one must-see, then like the other 7 places. */
 export async function likeEverything(page: Page) {
   await page.keyboard.press("ArrowUp");
