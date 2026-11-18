@@ -1,5 +1,6 @@
 import type { ChatResult } from "@langchain/core/outputs";
 import { FakeListChatModel } from "@langchain/core/utils/testing";
+import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SqliteLlmCache } from "@/server/ai/cache";
 import type { PlannerOutput } from "@/server/ai/prompts";
@@ -16,6 +17,7 @@ import {
 import { upsertCity, type City } from "@/server/places/cities";
 import { createTrip, getTrip, recordSwipe, type TripWithCity } from "@/server/trips/trips";
 import { createTestDatabase } from "../helpers/db";
+import { server } from "../helpers/msw";
 import { romePlaces } from "../helpers/rome";
 
 let t: ReturnType<typeof createTestDatabase>;
@@ -160,6 +162,42 @@ describe("itinerary generation (workflow B)", () => {
 
     const result = await generateItinerary(t.db, found, cached, { regenerate: true });
     expect(result.version).toBe(3);
+    expect(t.db.select().from(llmCache).all()).toHaveLength(1);
+  });
+
+  it("answers the same shortlist from the cache with the live model", async () => {
+    // Regression: inside the graph LangGraph adds per-run values (executionInfo) to the call
+    // options; they were part of the cache key, so every live plan missed. The fake model
+    // does not see them, hence the live model class here (requests answered by msw).
+    let requests = 0;
+    server.use(
+      http.post("https://openrouter.ai/api/v1/chat/completions", () => {
+        requests++;
+        return HttpResponse.json({
+          id: "gen-1",
+          object: "chat.completion",
+          created: 0,
+          model: "test",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: JSON.stringify(validOutput) },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        });
+      }),
+    );
+    const live = deps({
+      env: parseEnv({ LLM_MODE: "live", OPENROUTER_API_KEY: "test-key" }),
+      llmCache: new SqliteLlmCache(t.db),
+    });
+    const first = await generateItinerary(t.db, found, live);
+    const second = await generateItinerary(t.db, found, live);
+    expect(requests).toBe(1);
+    expect([first.data.source, second.data.source]).toEqual(["ai", "ai"]);
+    expect(second.data).toEqual(first.data);
     expect(t.db.select().from(llmCache).all()).toHaveLength(1);
   });
 
