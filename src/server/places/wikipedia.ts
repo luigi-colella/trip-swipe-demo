@@ -46,7 +46,18 @@ export type ImageCredit = {
 type CachedWikiLookup = { page: WikiPage | null };
 type CachedCredit = { credit: ImageCredit | null };
 
+/**
+ * Continuation parameters (`continue`, `pvipcontinue`…) sent back as they are in the next
+ * request, so only `*continue` names and short values are accepted; anything else is ignored.
+ */
+const ContinueParams = z
+  .record(z.string().regex(/^[a-z]*continue$/), z.string().max(300))
+  .refine((params) => Object.keys(params).length <= 5)
+  .optional()
+  .catch(undefined);
+
 const WikiResponse = z.object({
+  continue: ContinueParams,
   query: z
     .object({
       normalized: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
@@ -192,7 +203,7 @@ export function parseWikiResponse(
   return out;
 }
 
-function wikiBatchUrl(titles: readonly string[]): string {
+function wikiBatchUrl(titles: readonly string[], continueParams: Record<string, string> = {}) {
   return `${WIKIPEDIA_API}?${new URLSearchParams({
     action: "query",
     format: "json",
@@ -213,7 +224,41 @@ function wikiBatchUrl(titles: readonly string[]): string {
     explaintext: "1",
     exsentences: "3",
     pvipdays: String(PAGEVIEW_DAYS),
+    ...continueParams,
   })}`;
+}
+
+/**
+ * Extra requests allowed per batch. Page views come from a separate service: Wikipedia
+ * answers them only for the pages it has at hand and returns a continuation for the rest
+ * (typically the less visited pages of a city nobody asked about recently).
+ */
+export const MAX_WIKI_CONTINUATIONS = 3;
+
+type WikiBody = z.infer<typeof WikiResponse>;
+
+/** Adds what a continuation returned (page views, any missing field) to the first answer. */
+function mergeContinuation(target: WikiBody, more: WikiBody): void {
+  const pages = new Map((target.query?.pages ?? []).map((p) => [p.title, p]));
+  for (const extra of more.query?.pages ?? []) {
+    const page = pages.get(extra.title);
+    if (!page) continue;
+    const pageviews = { ...extra.pageviews, ...page.pageviews };
+    Object.assign(page, { ...extra, ...page, pageviews });
+  }
+}
+
+/** One batch, following page-view continuations (bounded). */
+async function fetchWikiBatch(titles: readonly string[]): Promise<WikiBody> {
+  const body = WikiResponse.parse(await fetchJson(wikiBatchUrl(titles)));
+  let next = body.continue;
+  for (let round = 0; next && round < MAX_WIKI_CONTINUATIONS; round++) {
+    const more = WikiResponse.parse(await fetchJson(wikiBatchUrl(titles, next)));
+    mergeContinuation(body, more);
+    next = more.continue;
+  }
+  if (next) console.warn("Wikipedia continuation not followed further: some page views missing");
+  return body;
 }
 
 /**
@@ -236,7 +281,7 @@ export async function fetchWikiPages(
   }
 
   for (const batch of chunk(misses, WIKI_BATCH)) {
-    const parsed = parseWikiResponse(batch, await fetchJson(wikiBatchUrl(batch)));
+    const parsed = parseWikiResponse(batch, await fetchWikiBatch(batch));
     for (const [title, page] of parsed) {
       writeHttpCache(
         deps.db,

@@ -1,4 +1,5 @@
 import { FakeListChatModel } from "@langchain/core/utils/testing";
+import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SqliteLlmCache } from "@/server/ai/cache";
 import { llmCache } from "@/server/db/schema";
@@ -13,7 +14,11 @@ import {
   type DiscoveryDeps,
 } from "@/server/places/discover";
 import { DAY_MS, HttpError } from "@/server/places/http-cache";
-import { fetchImageCredits, fetchWikiPages } from "@/server/places/wikipedia";
+import {
+  fetchImageCredits,
+  fetchWikiPages,
+  MAX_WIKI_CONTINUATIONS,
+} from "@/server/places/wikipedia";
 import { createTestDatabase } from "../helpers/db";
 import { mockWikimedia, server, type StubArticle } from "../helpers/msw";
 
@@ -104,6 +109,100 @@ describe("workflow A: place discovery", () => {
     const pages = await fetchWikiPages(titles, { db: t.db });
     expect(calls).toHaveLength(1);
     expect(pages.size).toBe(20);
+  });
+
+  it("follows page-view continuations (regression: popularity 0)", async () => {
+    // The real API answered page views for part of a batch and a continuation for the rest,
+    // which was not followed: 12 of 18 Bologna places got popularity 0.
+    const titles = Array.from({ length: 10 }, (_, i) => `Sight ${i}`);
+    const { calls } = mockWikimedia(Object.fromEntries(titles.map((x, i) => [x, near(100 + i)])), {
+      pageviewsPerRequest: 4,
+    });
+    const pages = await fetchWikiPages(titles, { db: t.db });
+    expect(calls).toHaveLength(3);
+    expect(new URL(calls[1]).searchParams.get("pvipcontinue")).toBe("Sight 4");
+    expect(titles.map((x) => pages.get(x)?.popularity)).toEqual(titles.map((_, i) => 100 + i));
+  });
+
+  it("gives up after a bounded number of continuations, keeping what it has", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const titles = Array.from({ length: 10 }, (_, i) => `Sight ${i}`);
+    const { calls } = mockWikimedia(Object.fromEntries(titles.map((x) => [x, near(50)])), {
+      pageviewsPerRequest: 1,
+    });
+    const pages = await fetchWikiPages(titles, { db: t.db });
+    expect(calls).toHaveLength(1 + MAX_WIKI_CONTINUATIONS);
+    expect(pages.size).toBe(10);
+    const popularity = titles.map((x) => pages.get(x)?.popularity);
+    expect(popularity.filter((p) => p === 50)).toHaveLength(1 + MAX_WIKI_CONTINUATIONS);
+    expect(popularity.filter((p) => p === 0)).toHaveLength(10 - 1 - MAX_WIKI_CONTINUATIONS);
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("ignores malformed continuations and pages it did not ask about", async () => {
+    const answers = [
+      {
+        continue: { pvipcontinue: "B", continue: "||" },
+        query: {
+          pages: [
+            { title: "A", coordinates: [{ lat: 41.9, lon: 12.48 }], pageviews: { d: 5 } },
+            { title: "B", coordinates: [{ lat: 41.9, lon: 12.48 }] },
+          ],
+        },
+      },
+      {
+        continue: { pvipcontinue: "C" },
+        query: {
+          pages: [
+            { title: "B", pageviews: { d: 7 }, extract: "Filled in." },
+            { title: "Z", coordinates: [{ lat: 1, lon: 1 }], pageviews: { d: 9 } },
+          ],
+        },
+      },
+      // No query at all, and continuation parameters that must not be sent back.
+      { continue: { action: "edit", pvipcontinue: "D" } },
+    ];
+    const urls: string[] = [];
+    server.use(
+      http.get("https://en.wikipedia.org/w/api.php", ({ request }) => {
+        urls.push(request.url);
+        return HttpResponse.json(answers[urls.length - 1]);
+      }),
+    );
+    const pages = await fetchWikiPages(["A", "B"], { db: t.db });
+    expect(urls).toHaveLength(3);
+    expect(new URL(urls[2]).searchParams.get("action")).toBe("query");
+    expect([...pages.keys()]).toEqual(["A", "B"]);
+    expect(pages.get("A")).toMatchObject({ popularity: 5 });
+    expect(pages.get("B")).toMatchObject({ popularity: 7, extract: "Filled in." });
+  });
+
+  it("ignores a continuation with too many parameters", async () => {
+    const urls: string[] = [];
+    const tooMany = Object.fromEntries(
+      ["a", "b", "c", "d", "e", "f"].map((k) => [`${k}continue`, "x"]),
+    );
+    server.use(
+      http.get("https://en.wikipedia.org/w/api.php", ({ request }) => {
+        urls.push(request.url);
+        return HttpResponse.json({ continue: tooMany, query: { pages: [] } });
+      }),
+    );
+    expect((await fetchWikiPages(["A"], { db: t.db })).size).toBe(0);
+    expect(urls).toHaveLength(1);
+  });
+
+  it("does not take pages from a continuation when the first answer had none", async () => {
+    const answers = [
+      { continue: { pvipcontinue: "A" } },
+      { query: { pages: [{ title: "A", coordinates: [{ lat: 41.9, lon: 12.48 }] }] } },
+    ];
+    let requests = 0;
+    server.use(
+      http.get("https://en.wikipedia.org/w/api.php", () => HttpResponse.json(answers[requests++])),
+    );
+    expect((await fetchWikiPages(["A"], { db: t.db })).size).toBe(0);
+    expect(requests).toBe(2);
   });
 
   it("serves an existing pool without calling the LLM or the network", async () => {

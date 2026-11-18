@@ -24,7 +24,15 @@ export type StubArticle = {
  */
 export function mockWikimedia(
   articles: Record<string, StubArticle>,
-  options: { licensedFiles?: string[]; failWikipedia?: boolean } = {},
+  options: {
+    licensedFiles?: string[];
+    failWikipedia?: boolean;
+    /**
+     * Like the real API for pages it has no page views at hand for: only this many pages per
+     * request get them, the rest come through `pvipcontinue` continuations.
+     */
+    pageviewsPerRequest?: number;
+  } = {},
 ): { calls: string[] } {
   const calls: string[] = [];
   const licensed = new Set(
@@ -48,6 +56,11 @@ export function mockWikimedia(
         .map((t) => ({ from: t, to: redirectTo.get(t)! }));
       // Like the real API: without colimit only the first 10 pages get coordinates.
       const coordLimit = url.searchParams.get("colimit") === "max" ? Infinity : 10;
+      const perRequest = options.pageviewsPerRequest ?? Infinity;
+      const resolved = titles.map((t) => redirectTo.get(t) ?? t);
+      const from = Math.max(0, resolved.indexOf(url.searchParams.get("pvipcontinue") ?? ""));
+      const withViews = (i: number) => i >= from && i < from + perRequest;
+      const next = resolved[from + perRequest];
       const pages = titles.map((requested, i) => {
         const title = redirectTo.get(requested) ?? requested;
         const a = articles[title];
@@ -64,10 +77,17 @@ export function mockWikimedia(
               }
             : {}),
           ...(a.disambiguation ? { pageprops: { disambiguation: "" } } : {}),
-          pageviews: { "2026-11-01": a.views ?? 100, "2026-11-02": null },
+          ...(withViews(i)
+            ? { pageviews: { "2026-11-01": a.views ?? 100, "2026-11-02": null } }
+            : {}),
         };
       });
-      return HttpResponse.json({ batchcomplete: true, query: { redirects, pages } });
+      return HttpResponse.json({
+        ...(next === undefined
+          ? { batchcomplete: true }
+          : { continue: { pvipcontinue: next, continue: "||" } }),
+        query: { redirects, pages },
+      });
     }),
 
     http.get("https://commons.wikimedia.org/w/api.php", ({ request }) => {
