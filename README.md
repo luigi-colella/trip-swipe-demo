@@ -1,4 +1,4 @@
-# TripSwipe AI
+# TripSwipe AI - Proof of Concept
 
 Swipe through a city's attractions, and an AI agent turns your picks into a realistic
 day-by-day itinerary that you refine by chatting.
