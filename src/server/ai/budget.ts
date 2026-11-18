@@ -99,18 +99,45 @@ export class BudgetGuard extends BaseCallbackHandler {
   }
 }
 
+/** Short, safe description of a thrown fetch error: name and (bounded) message only. */
+function describeError(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}`.slice(0, 200) : "unknown error";
+}
+
 /**
- * fetch for the provider client: counts every request (retries included, they use quota too)
- * and notices when the provider's own daily quota is used up.
+ * fetch for the provider client: counts every request (retries included, they use quota too),
+ * notices when the provider's own daily quota is used up, and logs failed requests so failures
+ * and the SDK's retries are visible on the server. Logs never include headers, bodies or URLs.
  */
 export function budgetedFetch(budget: LlmBudget): typeof fetch {
   return async (input, init) => {
     budget.record();
-    const response = await fetch(input, init);
-    // OpenRouter: "Rate limit exceeded: free-models-per-day…" (the per-minute limit says
-    // "per-min" and only needs a short wait).
-    if (response.status === 429 && /per-day/i.test(await response.clone().text())) {
-      budget.markExhausted();
+    const started = Date.now();
+    const elapsed = () => `${Date.now() - started}ms`;
+    let response: Response;
+    try {
+      response = await fetch(input, init);
+    } catch (err) {
+      // The SDK aborts its own signal both on timeout and when the caller cancels: not
+      // necessarily a failure, but the duration tells a timeout apart.
+      if (init?.signal?.aborted) {
+        console.info(`LLM request aborted after ${elapsed()} (timeout or cancelled)`);
+      } else {
+        console.warn(`LLM request failed: ${describeError(err)} after ${elapsed()}`);
+      }
+      throw err;
+    }
+    const duration = elapsed();
+    if (response.status === 429) {
+      // OpenRouter: "Rate limit exceeded: free-models-per-day…" (the per-minute limit says
+      // "per-min" and only needs a short wait).
+      const daily = /per-day/i.test(await response.clone().text());
+      if (daily) budget.markExhausted();
+      console.warn(
+        `LLM request failed: 429 (${daily ? "daily quota" : "rate limit"}) after ${duration}`,
+      );
+    } else if (!response.ok) {
+      console.warn(`LLM request failed: ${response.status} after ${duration}`);
     }
     return response;
   };
