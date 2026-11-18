@@ -5,6 +5,7 @@ import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ZodError } from "zod";
 import { paceMinutes, type ItineraryData } from "@/lib/itinerary";
+import { truncateText } from "@/lib/places";
 import { PACE_LABELS, type Pace } from "@/lib/trip";
 import { fakePlannerResponse } from "@/server/ai/fake";
 import type { LlmBudget } from "@/server/ai/budget";
@@ -58,6 +59,21 @@ export type PlannerResult = {
 
 /** First answer + up to 2 repairs. */
 export const MAX_PLAN_ATTEMPTS = 3;
+
+/** Upper bound on the logged rejection reasons (one line in the server log). */
+const MAX_LOGGED_ERRORS_LENGTH = 1000;
+
+/**
+ * Logs why an answer was rejected, so the reasons survive without tracing. Only the rule text
+ * is logged (aliases, place names, a truncated unknown ID), never the raw model output or the
+ * traveller's wishes; whitespace is collapsed so one rejection stays one log line.
+ */
+function logRejectedPlan(attempt: number, errors: readonly string[]): void {
+  console.warn(
+    `Itinerary plan rejected (attempt ${attempt}/${MAX_PLAN_ATTEMPTS}): ` +
+      truncateText(errors.join("; "), MAX_LOGGED_ERRORS_LENGTH),
+  );
+}
 
 const State = Annotation.Root({
   input: Annotation<PlannerInput>,
@@ -166,6 +182,7 @@ export function buildPlannerGraph(deps: PlannerDeps) {
         return { attempts, providerFailed: true, output: null };
       }
       const errors = ["Your reply was not valid JSON matching the required structure."];
+      logRejectedPlan(attempts, errors);
       return {
         attempts,
         output: null,
@@ -184,6 +201,7 @@ export function buildPlannerGraph(deps: PlannerDeps) {
       budgetMinutes: s.budgetMinutes,
     });
     if (data) return { result: data, errors: [] };
+    logRejectedPlan(s.attempts, errors);
     return {
       errors,
       conversation: [
@@ -194,7 +212,15 @@ export function buildPlannerGraph(deps: PlannerDeps) {
     };
   };
 
-  const fallback = (s: S): Partial<S> => ({ result: s.draft });
+  const fallback = (s: S): Partial<S> => {
+    // A provider failure is already logged by the plan node.
+    if (!s.providerFailed) {
+      console.warn(
+        `Itinerary planner gave up after ${s.attempts} rejected attempts, using the deterministic plan`,
+      );
+    }
+    return { result: s.draft };
+  };
 
   return new StateGraph(State)
     .addNode("prepare", prepare)
