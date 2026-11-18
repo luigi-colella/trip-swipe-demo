@@ -117,3 +117,45 @@ test("the map shows the selected day's numbered stops", async ({ page, isMobile 
   );
   expect(errors).toEqual([]);
 });
+
+test("the map survives leaving the itinerary and coming back in the app", async ({
+  page,
+  isMobile,
+}) => {
+  // Next.js keeps visited routes alive, hidden, across client navigations: the Leaflet map must
+  // be created afresh when the itinerary is shown again (it once showed the error page instead).
+  const errors = collectErrors(page);
+  await planRomeTrip(page);
+  await expect(dayList(page, 1)).toBeVisible();
+  const stops = await dayList(page, 1)
+    .getByRole("button", { name: /^Change / })
+    .count();
+  expect(stops).toBeGreaterThan(1);
+  const map = page.getByRole("region", { name: "Map of day 1" });
+  const markers = map.locator(".leaflet-marker-icon");
+  if (isMobile) await page.getByRole("button", { name: "Map", exact: true }).click();
+  await expect(markers).toHaveCount(stops);
+
+  const mapIsBack = async () => {
+    await expect(page).toHaveURL(/\/itinerary$/);
+    // The page keeps its state (on mobile, the map view stays open).
+    await expect(map).toBeVisible();
+    await expect(markers).toHaveCount(stops);
+    await expect(markers.first()).toHaveText("1");
+    await expect(page.getByText("We couldn't load your itinerary")).toHaveCount(0);
+  };
+
+  const steps = page.getByRole("navigation", { name: "Trip progress" });
+  await steps.getByRole("link", { name: "Swipe" }).click();
+  await expect(page).toHaveURL(/\/swipe$/);
+  await hydrated(steps.getByRole("link", { name: "Itinerary" }));
+  await steps.getByRole("link", { name: "Itinerary" }).click();
+  await mapIsBack();
+
+  // Straight back again, without letting the hidden page settle.
+  await steps.getByRole("link", { name: "Swipe" }).click();
+  await expect(page).toHaveURL(/\/swipe$/);
+  await page.goBack();
+  await mapIsBack();
+  expect(errors).toEqual([]);
+});

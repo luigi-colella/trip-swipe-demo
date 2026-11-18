@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { divIcon, latLngBounds } from "leaflet";
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -56,17 +56,30 @@ function FollowSelection({ stop }: { stop: MapStop | undefined }) {
   return null;
 }
 
-export default function ItineraryMap({
-  stops,
-  center,
-  selectedId,
-  onSelect,
-}: {
+type ItineraryMapProps = {
   stops: readonly MapStop[];
   center: LatLon;
   selectedId: string | null;
   onSelect: (id: string) => void;
-}) {
+};
+
+/**
+ * Next.js keeps visited routes in React's <Activity> (Cache Components): hiding the page runs
+ * effect cleanups, and react-leaflet's cleanup removes the Leaflet map while its instance stays
+ * in state. Showing the page again re-runs the layers' effects against that removed map
+ * ("Cannot read properties of undefined (reading 'appendChild')"). A new key on every
+ * disconnect remounts the container, so a fresh map is created when the page is shown (React
+ * renders the hidden tree's pending update at the latest when revealing it). The new map fits
+ * the day's stops again, as on first load; in development, StrictMode's extra effect cycle
+ * also creates the map twice.
+ */
+export default function ItineraryMap(props: ItineraryMapProps) {
+  const [generation, setGeneration] = useState(0);
+  useEffect(() => () => setGeneration((g) => g + 1), []);
+  return <LeafletMap key={generation} {...props} />;
+}
+
+function LeafletMap({ stops, center, selectedId, onSelect }: ItineraryMapProps) {
   const route = useMemo(() => stops.map((s) => [s.lat, s.lon] as [number, number]), [stops]);
   return (
     <MapContainer
