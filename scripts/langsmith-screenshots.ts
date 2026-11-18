@@ -46,7 +46,9 @@ type Shot = {
 async function main() {
   const env = parseEnv();
   if (!env.LANGSMITH_API_KEY || !env.LANGSMITH_AGENT_ID || !env.LANGSMITH_AGENT_ENVIRONMENT) {
-    throw new Error("Set LANGSMITH_API_KEY and LANGSMITH_AGENT_* in .env.local (see README).");
+    throw new Error(
+      "Set LANGSMITH_API_KEY and LANGSMITH_AGENT_* in .env.local (see docs/operations.md).",
+    );
   }
   const client = new Client();
   const projectName = `${env.LANGSMITH_AGENT_ID}-${env.LANGSMITH_AGENT_ENVIRONMENT}`;

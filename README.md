@@ -1,9 +1,16 @@
 # TripSwipe AI
 
-Discover a city by swiping through its attractions, then let an AI agent turn your picks into a realistic day-by-day itinerary — and refine it by chatting.
+Swipe through a city's attractions, and an AI agent turns your picks into a realistic
+day-by-day itinerary that you refine by chatting.
 
-> Demo project: full-stack TypeScript web app with generative AI (LangChain.js + LangGraph.js),
-> running locally at $0 cost on free models.
+TripSwipe AI is a full-stack generative AI web app (Next.js, TypeScript, LangChain.js,
+LangGraph.js, SQLite). It is a **proof of concept, not a production app**: it runs locally, for
+a handful of users, on free models, with no accounts and no deployment. Within that scope it
+applies the engineering practices a real AI system needs: agentic workflows with deterministic
+fallbacks, guardrails, evals, tracing and 100% test coverage. It is also an experiment in how
+software gets built: **every line of code, test and documentation was written by a coding agent
+(Claude Code)**, while I owned the requirements, the decisions and the quality bar. See
+[How it was built](#how-it-was-built-100-agent-written-code).
 
 ![Demo: pick Rome for 2 days, swipe through attractions, review the shortlist, generate the itinerary with its map, then move a stop to day 2 by chatting](docs/media/demo.gif)
 
@@ -17,34 +24,116 @@ Commons (author and license on each card); map data © OpenStreetMap contributor
 - **Itinerary**: a LangGraph workflow turns the shortlist into feasible days with times,
   walking/transit legs, a lunch break, a map and Google Maps directions.
 - **Chat**: a LangChain agent with tools edits the trip; the page updates as it answers.
-- **Deterministic first**: the model curates and explains; code computes distances,
-  schedules, validation, ranking and fallbacks, so the app keeps working when the free quota
-  runs out.
+
+## Highlights
+
+### AI engineering
+
+- **Three AI workflows, each shaped for its job.** Cache-first place discovery grounded on
+  Wikipedia; a LangGraph planning graph (`prepare → cluster → plan → validate`) with a bounded
+  repair loop and a deterministic fallback; a tool-calling chat agent with persistent memory
+  that edits the trip while it answers.
+- **Deterministic first.** The model curates and explains; code computes distances, schedules,
+  validation, ranking and fallbacks. When the model is wrong, slow or unavailable, the app
+  still produces a valid plan and says so ("Planned by rules").
+- **Guardrails mapped to the OWASP Top 10 for LLM Applications (2025).** Injection and
+  prompt-extraction heuristics, PII redaction, tools scoped to the server-side trip (IDs from
+  the model are never trusted), per-turn call limits, Zod-validated structured output,
+  sanitized markdown with allow-listed links.
+- **Evals and observability.** Every model call is traced in LangSmith. Two eval suites with
+  deterministic evaluators: itinerary quality on real cities and an adversarial suite of
+  injection, extraction and cross-trip attacks.
+- **Built for an unreliable, rate-limited provider.** The app runs on free OpenRouter models:
+  about 50 requests a day, models that come and go, uneven tool calling. I treated that as a
+  constraint to design for, not a shortcut: exact-match LLM cache, precomputed city pools, a
+  daily request budget with graceful degradation (swiping, quick edits and rule-based planning
+  keep working), timeouts and bounded retries. Any OpenRouter model is one environment variable
+  away, and model access lives in one module, so adding a paid provider touches only that file.
+- **Offline fake LLM mode.** Scripted models make tests, CI and demos deterministic, and let
+  anyone clone and run the app without an API key.
+
+### Software engineering
+
+- **100% test coverage** of `src/` (statements, branches, functions, lines), with unit,
+  integration (real SQLite), component and Playwright end-to-end tests on mobile and desktop.
+- **Quality as tests:** automated accessibility (axe-core, WCAG 2.1 AA), performance budgets
+  (< 200 KB initial JS, CLS < 0.05), layout checks from 320 px to 1280 px, screenshot tests.
+- **Defensive by default:** Zod at every trust boundary, typed error results, idempotent
+  writes, rate limits, timeouts on every outbound request.
+- **CI on every push to main and every pull request:** lint, format, typecheck, coverage, build,
+  end-to-end tests, secrets scan.
+- **Documented decisions:** the full [specification](docs/PLAN.md) with the owner decisions of
+  each milestone, and 10 [architecture decision records](docs/adr/README.md).
+
+## How it was built: 100% agent-written code
+
+Part of the point of this project is to show that the code of a well-engineered full-stack
+app can be written entirely by a coding agent, while an engineer steers it: requirements,
+decisions, the quality bar and review. I believe this is where software development
+is heading, and this repository is how I work.
+
+- **No code written or edited by hand.** All code, tests, configuration and documentation,
+  this README included, were written by [Claude Code](https://claude.com/claude-code) (Claude
+  Opus 5.5). Every non-merge commit carries a `Co-Authored-By: Claude` trailer.
+- **Testing was agentic too.** The agent wrote and ran the automated suites and drove the
+  browser for end-to-end and exploratory checks.
+
+**My role: the engineer, not the typist.**
+
+- **Requirements and specification.** I wrote the functional requirements; the agent turned
+  them into the [specification](docs/PLAN.md) over four iterations in plan mode, presenting
+  each trade-off as options (paid vs free models, OpenRouter vs Gemini, a local model, hosting
+  vs local-only).
+- **Decisions.** I made the product and architecture decisions: some by choosing among the
+  options the agent laid out, others by proposing my own. Every plan went through my approval.
+  Requirements change only with my approval, a rule written into the agent's instructions;
+  the decisions are recorded in the specification and the ADRs.
+- **The quality bar.** I set the rules the agent works under: 100% coverage, screenshot tests
+  for every UI change, a defensive programming checklist, Conventional Commits.
+- **Review.** I approved each milestone's plan and result.
+
+**The harness that keeps the agent on track.**
+
+- **[`AGENTS.md`](AGENTS.md):** project rules, architecture conventions, the defensive
+  programming checklist and the testing policy, loaded into every session.
+- **One milestone per session, plan first:** each session started from the next milestone in
+  the specification, with the agent asking for missing information before writing code.
+- **Automated gates the agent cannot skip:** a Claude Code Stop hook runs the tests and the
+  100% coverage check before a task can end, and CI runs the full suite on every pull request.
+- **Agent-driven QA:** the agent ran Playwright itself for live-model flow tests and
+  robustness testing, and measured performance with a fixed Lighthouse protocol, keeping only
+  the changes that measurably helped (see M7 in the [specification](docs/PLAN.md)).
+- **Parallel agents:** in the last round, the agent recorded console, server and network logs
+  during a browser session, triaged nine findings by risk, and fixed them with five
+  subagents working in parallel in isolated git worktrees, each reviewing its own diff before
+  the merge.
 
 ## Stack
 
-- **Next.js** (App Router, Server Actions) + TypeScript + Tailwind CSS
+- **Next.js** (App Router, Server Actions) + TypeScript + Tailwind CSS + shadcn/ui
 - **LangChain.js v1 / LangGraph.js** for the agent and itinerary workflow, **LangSmith** for tracing and evals
 - **OpenRouter** free models as the LLM provider
-- **SQLite** via **Drizzle ORM** + `better-sqlite3` (prebuilt binaries — no database server or build tools needed)
+- **SQLite** via **Drizzle ORM** + `better-sqlite3` (prebuilt binaries: no database server or build tools needed)
+- **Vitest**, **Playwright**, **msw** and **axe-core** for testing
 
 ## Quickstart
 
-Requirements: Node.js 24+. Nothing else to install.
+The app runs locally (there is no hosted demo). Requirements: Node.js 24+, nothing else to
+install, and no API key for the offline mode.
 
 ```bash
 npm install
 cp .env.example .env.local   # LLM_MODE=fake works offline without API keys
 npm run db:migrate
-npm run db:seed              # optional, see "Seeding demo cities" below
 npm run dev                  # http://localhost:3000  (health check: /api/health)
 ```
 
 In fake mode (the default in `.env.example`), try **Rome** or **Paris** from the setup page,
 or type "Plan a trip to Rome for 2 days" in the chat. For real models, set `LLM_MODE=live`
 and an `OPENROUTER_API_KEY` (free account at [openrouter.ai](https://openrouter.ai)) in
-`.env.local`, then seed a few cities (below). For a demo, prefer the production build:
-`npm run build && npm start`.
+`.env.local`, then seed a few cities with `npm run db:seed` (see
+[Operations](docs/operations.md#seeding-demo-cities)). For a demo, prefer the production
+build: `npm run build && npm start`.
 
 ## Architecture
 
@@ -108,54 +197,6 @@ sequenceDiagram
   API-->>UI: streamed markdown reply
   A->>DB: checkpoint (conversation)
 ```
-
-## Seeding demo cities
-
-Each city's attractions are discovered once (one LLM call, then Wikipedia/Commons grounding)
-and stored in SQLite as a shared pool; every later trip to that city is served from the
-database without calling the LLM. `npm run db:seed` runs this discovery ahead of time for
-~25 popular cities, so demos never wait for the model or run out of the free quota.
-
-**When to run it:** after `npm run db:migrate` on a fresh database, or whenever `data/app.db`
-has been deleted. It is optional: cities that were not seeded are discovered on first use.
-
-**Requirements and cost:**
-
-- `LLM_MODE=live` and `OPENROUTER_API_KEY` in `.env.local`. In `LLM_MODE=fake` only the
-  fixture cities (Rome, Paris, see `src/server/ai/fake.ts`) get places; the others fail with
-  "No verifiable attractions found".
-- One OpenRouter request per new city. A full run uses ~25 of the ~50 free daily requests,
-  so consider seeding in batches across days.
-- Network access to Photon, Wikipedia and Wikimedia Commons (free, no keys).
-
-**Usage:**
-
-```bash
-npm run db:seed                            # all demo cities
-npm run db:seed -- --cities Rome,Florence  # a subset (names as listed in scripts/seed.ts)
-```
-
-**Behaviour:**
-
-- **Resumable:** cities that already have places are reported as `cached` and skipped without
-  any request, so re-running after a failure or a quota error only retries the missing ones.
-  The exit code is non-zero if any city failed.
-- **Retries are cheap:** the LLM answer is stored in `llm_cache` (30 days) before Wikipedia
-  is queried, so a retry after a network error does not spend another LLM request.
-- Candidates without a Wikipedia article with coordinates, farther than 30 km from the
-  centre, or duplicated are dropped; photos are kept only with a known Commons license.
-- Wikipedia data older than 90 days is refreshed automatically on the next visit (no LLM call).
-
-**Maintenance:**
-
-- **Add a city:** append `[name, ISO country code]` to `DEMO_CITIES` in `scripts/seed.ts`
-  (the country code picks the right match among homonyms), then run
-  `npm run db:seed -- --cities <name>`.
-- **Re-discover a city** (e.g. after changing the discovery prompt): delete its places, e.g.
-  with `npm run db:studio`, then seed it again. **Warning:** deleting places also deletes
-  (via `ON DELETE CASCADE`) every swipe that existing trips recorded on them. Changing the prompt or the model automatically
-  invalidates `llm_cache`.
-- **Start over:** delete `data/app.db*`, then `npm run db:migrate && npm run db:seed`.
 
 ## Itinerary planning
 
@@ -238,61 +279,21 @@ Deterministic controls only, following the OWASP Top 10 for LLM Applications (20
 - **Lighthouse** (manual): with `npm run build && npm start` running, e.g.
   `npx lighthouse http://localhost:3000 --view` (mobile, simulated 4× CPU and slow 4G).
 
-## Recording the demo
-
-`npm run demo:record` (after `npm run build`) plays the flow shown at the top with Playwright
-and records it to `test-results/demo/record-demo/video.webm`. It runs a production server on
-port 3200 in `LLM_MODE=fake` against `data/demo.db`, a throwaway copy of `data/app.db`, so it
-costs no quota and leaves your trips alone. It needs Rome's real place pool (photos included):
-seed it once with `npm run db:seed -- --cities Rome` (1 live request). Photos and map tiles
-come from the network. The script is in `scripts/demo/`; it is not part of the test suites.
-
-To refresh `docs/media/demo.gif`, convert the video with any tool; with
-[ffmpeg](https://ffmpeg.org) (not needed by the project):
-
-```bash
-ffmpeg -ss 1 -i test-results/demo/record-demo/video.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 docs/media/demo.gif
-```
-
-`-ss 1` skips the blank frames recorded while the first page loads, so the GIF (and its
-preview) starts on the setup screen; if a new recording still starts blank, raise it. These
-settings keep the GIF under 5 MB.
-
-## Evals with LangSmith
+## Evals and tracing with LangSmith
 
 `npm run evals` scores the real workflows with deterministic evaluators (`evals/`), on a
 throwaway copy of the database:
 
 - **trips** (~10): the itinerary planner on the most popular places of seeded demo cities.
   Scores: valid AI plan (no fallback), right the first time, must-sees planned, days within
-  the pace. Cities that were not seeded are skipped.
+  the pace.
 - **adversarial** (~15): injection, extraction, off-topic and cross-trip requests sent to the
   chat agent. Scores: other trip untouched, no system-prompt leak, declined (or handled),
   heuristics caught exactly the expected prompts.
 
-Results go to LangSmith as experiments (datasets are created on first use; needs
-`LANGSMITH_API_KEY`). `--suite trips|adversarial` runs one suite, `--dry-run` prints the
-scores without uploading. In `LLM_MODE=live` a full run can take ~20–60 OpenRouter requests,
-so run one suite per day; `LLM_MODE=fake --dry-run` checks the setup offline. The datasets
-are also checked offline by `npm test` (what the heuristics must and must not catch).
-
-## Tracing with LangSmith (optional)
-
-Every LLM call (e.g. `discover_places`, tagged `workflow-a`, or the `itinerary_planner` graph, tagged `workflow-b`) can be traced to
-[LangSmith](https://smith.langchain.com) on the free Developer plan. LangChain reads the
-`LANGSMITH_*` variables by itself; the app only validates them at startup.
-
-1. In LangSmith, set up tracing for an agent and copy the values it shows into `.env.local`:
-   `LANGSMITH_API_KEY`, `LANGSMITH_AGENT_ID`, `LANGSMITH_AGENT_ENVIRONMENT` and, for EU
-   workspaces, `LANGSMITH_ENDPOINT`.
-2. Set `LANGSMITH_TRACING=true`. Do not also set `LANGSMITH_PROJECT`: the SDK traces either to
-   an agent or to a project, and stops tracing if both are set (startup fails with a clear error).
-3. Run anything that calls the model in `LLM_MODE=live`, e.g. `npm run db:seed -- --cities Rome`;
-   the run appears under the agent in LangSmith. Fake mode is traced too, at no quota cost.
-
-Traces contain prompts and model outputs (city names and attraction lists, no personal data).
-
-### Screenshots of LangSmith
+The datasets are also checked offline by `npm test` (what the heuristics must and must not
+catch). Every LLM call can be traced to [LangSmith](https://smith.langchain.com), tagged by
+workflow. Setup, costs and options are in [Operations](docs/operations.md#running-the-evals).
 
 A chat turn: the agent calls `add_place` and the trip changes before it replies.
 
@@ -308,34 +309,11 @@ declined or safely handled, with no leak and the other trip untouched.
 
 ![LangSmith experiment of the adversarial suite: every case scores 1.00 on declined or handled, heuristics, no prompt leak and other trip untouched](docs/media/langsmith-evals.png)
 
-`npm run docs:langsmith` refreshes the LangSmith screenshots in `docs/media/`: the latest
-chat turn that calls `add_place`, the latest `itinerary_planner` graph and the latest
-adversarial eval experiment, found through the API (`LANGSMITH_API_KEY`, `LANGSMITH_AGENT_*`).
+## Documentation
 
-- **Missing data:** when LangSmith has nothing to show for one of them, the script offers to
-  create it with the live model and asks every time, showing the cost (chat turn ~2
-  requests, plan 1–3, adversarial evals ~15–30) and the requests already used today. Run it
-  in an interactive terminal; elsewhere it never spends quota. Needs Rome seeded.
-- **Sign-in:** the LangSmith web app needs a browser session, not the API key. The first
-  time, or when the saved session has expired, a Chromium window opens: sign in there (email
-  or GitHub; Google may refuse automated browsers) and the script continues by itself. The
-  session is kept in `data/langsmith-auth.json` (gitignored): treat it like a password.
-- The images leave out the sidebar (account and workspace names), product tips and account
-  notices, and mask email addresses; still check them before committing.
-
-## Scripts
-
-| Command                                            | Purpose                                                                                                                                             |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev` / `build` / `start`                  | Next.js dev server, production build, production server                                                                                             |
-| `npm test`                                         | Vitest unit, integration and component tests (offline, `LLM_MODE=fake`)                                                                             |
-| `npm run test:coverage`                            | The same tests with coverage; fails below 100% of `src/`                                                                                            |
-| `npm run test:e2e`                                 | Playwright flows, accessibility, performance and screenshots, mobile + desktop (after `npm run build`; first run `npx playwright install chromium`) |
-| `npm run test:e2e:update-screenshots`              | Regenerates the screenshot references (Windows only for now) after an intended UI change                                                            |
-| `npm run lint` / `typecheck` / `format`            | Code quality                                                                                                                                        |
-| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations and DB browser                                                                                                                   |
-| `npm run db:seed`                                  | Discovers and caches the places of ~25 demo cities; resumable, `-- --cities Rome,Paris` for a subset                                                |
-| `npm run spike:llm`                                | Checks chat, tool calling and structured output on the configured OpenRouter model (needs API key)                                                  |
-| `npm run evals`                                    | LangSmith evals of the planner and the chat agent; `-- --suite trips`, `-- --dry-run` (see above)                                                   |
-| `npm run demo:record`                              | Records the demo video in fake mode on a copy of the local database (after `npm run build`; see "Recording the demo")                               |
-| `npm run docs:langsmith`                           | Updates the LangSmith screenshots in `docs/media/` (see "Screenshots of LangSmith")                                                                 |
+- [Specification and development plan](docs/PLAN.md): requirements, architecture, milestones
+  and the owner decisions behind them.
+- [Architecture decision records](docs/adr/README.md).
+- [Operations](docs/operations.md): scripts, seeding demo cities, evals, LangSmith tracing and
+  screenshots, recording the demo.
+- [`AGENTS.md`](AGENTS.md): the instructions the coding agent works under.

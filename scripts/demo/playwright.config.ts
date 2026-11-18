@@ -7,7 +7,7 @@ const SIZE = { width: 1280, height: 800 };
  * Records the demo video (`npm run demo:record`, after `npm run build`): the full flow on a
  * copy of the local database (real Rome photos) with the offline fake LLM, so it costs no
  * provider quota. Photos and map tiles are loaded from the network. The video lands in
- * test-results/demo/; see the README's "Demo" section to turn it into docs/media/demo.gif.
+ * test-results/demo/; see "Recording the demo" in docs/operations.md to turn it into docs/media/demo.gif.
  */
 export default defineConfig({
   testDir: ".",

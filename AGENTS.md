@@ -1,8 +1,7 @@
 # AGENTS.md
 
 Guidance for AI coding agents (and humans) working in this repository.
-The full specification lives in `docs/PLAN.md`, a local planning document that is not committed
-(it may be missing in a fresh clone). When present, read it before larger changes.
+The full specification lives in `docs/PLAN.md`; read it before larger changes.
 
 ## Project
 
@@ -24,7 +23,7 @@ npm run typecheck      # next typegen + tsc
 npm run format         # Prettier
 npm run db:generate    # new migration after editing src/server/db/schema.ts
 npm run db:migrate     # apply migrations + checkpointer tables
-npm run db:seed        # pre-compute demo city place pools (LLM_MODE=live, 1 LLM call per new city; see README)
+npm run db:seed        # pre-compute demo city place pools (LLM_MODE=live, 1 LLM call per new city; see docs/operations.md)
 npm run spike:llm      # live model checks (needs OPENROUTER_API_KEY in .env.local)
 npm run evals          # LangSmith evals (live: spends daily LLM budget; --dry-run, --suite)
 npm run demo:record    # record the README demo video (fake LLM, copy of data/app.db; after build)

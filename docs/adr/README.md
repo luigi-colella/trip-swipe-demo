@@ -3,7 +3,7 @@
 Short records of the decisions that shape TripSwipe AI, in a lightweight
 [MADR](https://adr.github.io/madr/) format: context, decision, alternatives, consequences.
 They were written down after the fact, at the end of the first release (M6), from the
-project's planning notes. A decision that changes gets a new record that supersedes the old
+project's [specification](../PLAN.md). A decision that changes gets a new record that supersedes the old
 one; records are not rewritten.
 
 | #                                                   | Decision                                                      | Status   |
