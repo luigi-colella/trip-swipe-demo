@@ -4,6 +4,7 @@ import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
 import { llmBudget } from "@/server/ai/runtime";
 import { addToWindow, DAY_MS, HOUR_MS } from "@/server/limits/rate-limits";
 import { loadChatHistoryAction } from "@/server/actions/chat";
+import { chatDeps } from "@/server/agent/deps";
 import { db, sqlite } from "@/server/db/client";
 import { upsertCity } from "@/server/places/cities";
 import { createTrip, type Trip } from "@/server/trips/trips";
@@ -120,10 +121,10 @@ describe("POST /api/chat", () => {
     error.mockRestore();
   });
 
-  it("answers 503 when the turn cannot start", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    // The client went away before the run started.
-    const res = await POST(
+  it("answers 503 when the turn cannot start, logging only real failures", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    // The client went away before the run started: not an error worth logging.
+    let res = await POST(
       new Request("http://localhost/api/chat", {
         method: "POST",
         body: JSON.stringify({ tripId: trip.id, text: "hello" }),
@@ -134,6 +135,24 @@ describe("POST /api/chat", () => {
       503,
       "The assistant is unavailable right now. Please try again.",
     ]);
+    expect(error).not.toHaveBeenCalled();
+
+    // A real failure while setting the turn up is logged.
+    const fake = chatDeps.fake;
+    chatDeps.fake = () => {
+      throw new Error("model setup failed");
+    };
+    try {
+      res = await post({ tripId: trip.id, text: "hello" });
+    } finally {
+      chatDeps.fake = fake;
+    }
+    expect([res.status, await res.text()]).toEqual([
+      503,
+      "The assistant is unavailable right now. Please try again.",
+    ]);
+    expect(error).toHaveBeenCalledWith("Chat turn could not start", expect.any(Error));
+    error.mockRestore();
   });
 });
 

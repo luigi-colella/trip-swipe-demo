@@ -1,7 +1,7 @@
 import { createUIMessageStreamResponse } from "ai";
 import { connection } from "next/server";
 import { ChatRequestSchema } from "@/lib/chat";
-import { ChatBusyError, streamChatTurn } from "@/server/agent/agent";
+import { ChatBusyError, isClientAbort, streamChatTurn } from "@/server/agent/agent";
 import { AI_PAUSED_MESSAGE } from "@/lib/ai-busy";
 import { chatDeps } from "@/server/agent/deps";
 import { llmBudget } from "@/server/ai/runtime";
@@ -43,7 +43,8 @@ export async function POST(request: Request): Promise<Response> {
     return createUIMessageStreamResponse({ stream });
   } catch (err) {
     if (err instanceof ChatBusyError) return text(err.message, 409);
-    console.error("Chat turn could not start", err);
+    // A client that left before the run started is not a failure worth an error log.
+    if (!isClientAbort(err, request.signal)) console.error("Chat turn could not start", err);
     return text("The assistant is unavailable right now. Please try again.", 503);
   }
 }
