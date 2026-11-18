@@ -39,6 +39,8 @@ test("every step fits each QA size", async ({ page, isMobile }) => {
     await page.setViewportSize(size);
     for (const path of ["/", `${base}/swipe`, `${base}/review`, `${base}/itinerary`]) {
       await page.goto(path);
+      // Trip pages stream in: measure the real header, not its skeleton.
+      if (path !== "/") await page.getByRole("navigation", { name: "Trip progress" }).waitFor();
       await page.evaluate(() => document.fonts.ready);
       await expectNoHorizontalOverflow(page, `${path} at ${size.width}×${size.height}`);
     }

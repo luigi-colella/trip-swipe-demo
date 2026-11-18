@@ -66,8 +66,10 @@ export function TripHeader({
                 <span className={cn(!isCurrent && "max-[359px]:sr-only")}>{s.label}</span>
               </>
             );
+            // Tighter spacing on phones: at 360 px the four names leave only a few pixels, and
+            // Linux font rendering is wider than Windows (it overflowed in CI).
             const className = cn(
-              "flex items-center gap-1.5 rounded-md px-1 py-0.5",
+              "flex items-center gap-1 rounded-md px-0.5 py-0.5 sm:gap-1.5 sm:px-1",
               isCurrent ? "font-semibold" : "text-muted-foreground",
             );
             return (
